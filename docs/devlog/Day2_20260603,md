@@ -1,0 +1,3 @@
+- Tasks: source_tests.py, edgar_server.py, market_server.py
+
+- Details: 전반적인 데이터 형태를 확인하기 위해 테스트를 진행하고 MCP server을 구축했다. 국내 기업의 경우에는 직전에 만든 dart_server를 그대로 활용한다. edgar_server 또한 dart_server과 대응될 수 있게끔 툴을 구축하였다.
