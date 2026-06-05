@@ -12,7 +12,6 @@ SignalType = Literal[
     "gap",
     "all_time_high",
     "all_time_low",
-    "flow_shift",
     "anomaly_outlier",
     "breadth_surge",
 ]
@@ -44,15 +43,11 @@ class FinancialFigure(BaseModel):
     label: str
     period: str
     value: float
-    yoy: Optional[float] = None
 
 
 class Memo(BaseModel):
     event: Event
-    news_context: str = ""
-    filing_context: str = ""
     figures: list[FinancialFigure] = Field(default_factory=list)
-    discrepancy: str = ""
     summary: str = ""
     sources: list[str] = Field(default_factory=list)
     backend_used: str = "cloud"
@@ -65,4 +60,3 @@ class GraphState(TypedDict, total=False):
     has_filing: bool
     figures: list[FinancialFigure]
     memo: Memo
-

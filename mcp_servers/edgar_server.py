@@ -48,21 +48,21 @@ def _cik(ticker: str) -> str:
     return cik
 
 @mcp.tool()
-def fetch_filings_around(ticker: str, event_date: str, window_days: int = 7) -> dict:
-    """Find material SEC filings within ±window_days of event_date.
+def fetch_filings_around(ticker: str, event_date: str, lookback_days: int = 7) -> dict:
+    """Find material SEC filings from lookback_days to event_date.
 
     Args:
         ticker: US symbol
         event_date: 'YYYY-MM-DD' or 'YYYYMMDD'.
-        window_days: both sides of event_date. Default 7 -> total 15 days window.
+        lookback_days: days to look back. Default 7.
 
     Returns:
         {ticker, filings: [{filing_id, filing_date, form, title, primary_doc}, ...]}
     """
     cik = _cik(ticker)
 
-    d = datetime.strptime(event_date.relace("-", ""), "%Y%m%d")
-    bgn, end = d - timedelta(days=window_days), d + timedelta(days=window_days)
+    d = datetime.strptime(event_date.replace("-", ""), "%Y%m%d")
+    bgn = d - timedelta(days=lookback_days)
 
     recent = _req(f"{EDGAR_DATA}/submissions/CIK{cik}.json").json().get("filings", {}).get("recent", {})
 
@@ -77,10 +77,10 @@ def fetch_filings_around(ticker: str, event_date: str, window_days: int = 7) -> 
         if form not in MATERIAL_FORMS:
             continue
         try:
-            fd = datatime.strptime(fdate, "%Y-%m-%d")
+            fd = datetime.strptime(fdate, "%Y-%m-%d")
         except ValueError:
             continue
-        if fd < bgn or fd > end:
+        if fd < bgn or fd > d:
             continue
         out.append({
             "filing_id": acc,
@@ -93,72 +93,109 @@ def fetch_filings_around(ticker: str, event_date: str, window_days: int = 7) -> 
 
 
 @mcp.tool()
-def fetch_filing_text(
-    ticker: str,
-    accession: str,
-    primary_doc: str,
-    max_chars: int = 8000,
-) -> dict:
-    """Fetch and extract body text from a US filing's primary document.
-
-    Args:
-        ticker: US symbol (For CIK lookup).
-        accession: fetch_filings_around -> filing_id.
-        primary_doc: fetch_filings_around -> primary_doc.
-        max_chars: length for truncate.
-    
-    Returns:
-        {ticker, filing_id, text, truncated: True}
-    """
-    cik = _cik(ticker)
-    url = f"{EDGAR}/Archives/edgar/data/{int(cik)}/{accession.replace('-', '')}/{primary_doc}"
-
-    soup = BeautifulSoup(_req(url).text, "lxml")
-    text = re.sub(r'\s+', ' ', soup.get_text(separator=' ', strip=True))
-    return {
-        "ticker": ticker,
-        "filing_id": accession,
-        "text": text[:max_chars],
-        "truncated": len(text) > max_chars,
-    }
-
-
-@mcp.tool()
-def fetch_recent_financial(ticker: str) -> dict:
-    """Return most recent annual financial figures via yfinance.
-
-    Args: 
-        ticker: US symbol.
+def fetch_multi_quarters(ticker: str, n_quarters: int = 5) -> dict:
+    """Return quarterly figures of last n_quarters (chronological).
 
     Returns:
-        {ticker, year, figures: {Revenue, OperatingIncome, NetIncome, TotalAssets, TotalLiabilities, TotalEquity}}
+        {ticker, periods: ['2024-09-30', ...], by_period: {<period>: {...}}}
     """
     tk = yf.Ticker(ticker)
-    fin, bs = tk.financials, tk.balance_sheet
-
+    fin, bs = tk.quarterly_financials, tk.quarterly_balance_sheet
     if fin.empty:
-        raise ValueError(f"No US financial for {ticker}")
+        raise ValueError(f"No US quarterly financial for {ticker}")
 
-    col = fin.columns[0]
-    year = col.year
+    cols = list(fin.columns[:n_quarters])[::-1]
+    periods = [c.strftime("%Y-%m-%d") for c in cols]
 
-    def _val(df: pd.DataFrame, name: str) -> Optional[float]:
+    def _val(df: pd.DataFrame, name: str, col) -> Optional[float]:
         if name not in df.index:
             return None
         v = df.at[name, col]
         return None if pd.isna(v) else float(v)
 
+    by_period = {
+        periods[i]: {
+            "Revenue":          _val(fin, "Total Revenue", cols[i]),
+            "OperatingIncome":  _val(fin, "Operating Income", cols[i]),
+            "NetIncome":        _val(fin, "Net Income", cols[i]),
+            "TotalAssets":      _val(bs,  "Total Assets", cols[i]),
+            "TotalLiabilities": _val(bs,  "Total Liabilities Net Minority Interest", cols[i]),
+            "TotalEquity":      _val(bs,  "Stockholders Equity", cols[i]),
+        }
+        for i in range(len(cols))
+    }
+    return {"ticker": ticker, "periods": periods, "by_period": by_period}
+
+
+@mcp.tool()
+def fetch_multi_years(ticker: str, n_years: int = 5) -> dict:
+    """Return last n_years of annual figures (chronological) + YoY growth %.
+
+    Args:
+        ticker: US symbol.
+        n_years: number of years being fetched. Default 5.
+
+    Returns:
+        {
+            "ticker": "AAPL",
+            "years": [2021, 2022, 2023, 2024, 2025],
+            "by_year": {
+                2021: {Revenue, OperatingIncome, ..., TotalEquity},
+                2022: {...},
+                ...
+            },
+            "growth_rates": {
+                "Revenue": [0, 7.5, 2.0, -2.1, 5.1],
+                "OperatingIncome": [...],
+                ...
+            }
+        }
+    """
+    tk = yf.Ticker(ticker)
+    fin, bs = tk.financials, tk.balance_sheet
+    if fin.empty:
+        raise ValueError(f"No US financial for {ticker}")
+
+    cols = list(fin.columns[:n_years])[::-1]
+    years = [c.year for c in cols]
+
+    def _val(df: pd.DataFrame, name: str, col) -> Optional[float]:
+        if name not in df.index:
+            return None
+        v = df.at[name, col]
+        return None if pd.isna(v) else float(v)
+
+    by_year = {
+        y: {
+            "Revenue":          _val(fin, "Total Revenue", c),
+            "OperatingIncome":  _val(fin, "Operating Income", c),
+            "NetIncome":        _val(fin, "Net Income", c),
+            "TotalAssets":      _val(bs, "Total Assets", c),
+            "TotalLiabilities": _val(bs, "Total Liabilities Net Minority Interest", c),
+            "TotalEquity":      _val(bs, "Stockholders Equity", c),
+        }
+        for y, c in zip(years, cols)
+    }
+
+    def _growth(series: list[Optional[float]]) -> list[Optional[float]]:
+        out: list[Optional[float]] = [None]
+        for prev, cur in zip(series, series[1:]):
+            if prev in (None, 0) or cur is None:
+                out.append(None)
+            else:
+                out.append(round((cur - prev) / abs(prev) * 100, 2))
+        return out
+    
+    growth_rates = {
+        key: _growth([by_year[y][key] for y in years])
+        for key in by_year[years[0]]
+    }
+
     return {
         "ticker": ticker,
-        "year": year,
-        "figures": {
-            "Revenue":          _val(fin, "Total Revenue"),
-            "OperatingIncome":  _val(fin, "Operating Income"),
-            "NetIncome":        _val(fin, "Net Income"),
-            "TotalAssets":      _val(bs,  "Total Assets"),
-            "TotalLiabilities": _val(bs,  "Total Liabilities Net Minority Interest"),
-            "TotalEquity":      _val(bs,  "Stockholders Equity"),
-        },
+        "years": years,
+        "by_year": by_year,
+        "growth_rates": growth_rates,
     }
 
 

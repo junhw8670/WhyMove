@@ -14,7 +14,7 @@ from pykrx import stock
 
 load_dotenv()
 
-mcp = FactMCP("Market")
+mcp = FastMCP("Market")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = BASE_DIR / "cache"
@@ -32,7 +32,7 @@ def _rows(df: pd.DataFrame) -> list[dict]:
     return json.loads(out.to_json(orient="records"))
 
 @mcp.tool()
-def fetch_ohlcv(ticker:str, marekt:str, start: str, end: str) -> dict:
+def fetch_ohlcv(ticker:str, market:str, start: str, end: str) -> dict:
     """Fetch daily OHLCV. KR via pykrx, US via yfinance.
 
     Args:
@@ -68,18 +68,21 @@ def get_sector_map(market:str) -> dict:
     Returns: {market, sector_map: {<ticker>: <sector>, ...}}
     """
     if market == "KR":
-        path = json.loads(DART_INDUSTRY_PATH.read_text(encoding="utf-8"))
+        raw = json.loads(DART_INDUSTRY_PATH.read_text(encoding="utf-8"))
         mapping = {
             e["stock_code"]: e["industry"]
             for e in raw.values()
             if e.get("stock_code") and e.get("industry")
         }
     else:
-        path = CACHE_PATH / "us_sector_map.json"
+        path = CACHE_DIR / "us_sector_map.json"
         if not path.exists():
             raise FileNotFoundError(
                 f"Sector map missing: {path}. Run scripts/build_us_sector_map.py."
             )
-        mapping = json.loads(path.read_text(encoding="utf-8k"))
+        mapping = json.loads(path.read_text(encoding="utf-8"))
     return {"market": market, "sector_map": mapping}
 
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")

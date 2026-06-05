@@ -30,35 +30,14 @@ def build_features(df: pd.DataFrame, span: int = 60) -> pd.DataFrame:
     return out.dropna()
 
 
-def _flow_zscore(flow: pd.DataFrame, index: pd.Index, span: int = 60) -> Optional[pd.DataFrame]:
-    cols: dict[str, pd.Series] = {}
-    min_periods = span // 2
-
-    for col in ["외국인", "기관합계"]:
-        if col in flow.columns:
-            s = flow[col]
-            mean = s.ewm(span=span, min_periods=min_periods).mean()
-            std = s.ewm(span=span, min_periods=min_periods).std()
-            cols[col] = (s - mean) / (std + 1e-9)
-
-    if not cols:
-        return None
-    return pd.DataFrame(cols).reindex(index)
-
-
-
-
 def detect_events(
     df: pd.DataFrame,
     ticker: str,
     market: Market,
     name: str = "",
-    flow: Optional[pd.DataFrame] = None,
     span: int = 60,
     z_floor: float = 3.0,
-    flow_floor: float = 2.5,
     w_at: float = 1.0,
-    w_flow: float = 1.0,
     w_if: float = 1.5,
     score_cutoff: float = 3.0,
     last_only: bool = False
@@ -80,8 +59,6 @@ def detect_events(
     ath = df["Close"].cummax().shift(1).reindex(feats.index)
     atl = df["Close"].cummin().shift(1).reindex(feats.index)
     close = df["Close"].reindex(feats.index)
-
-    flow_z = _flow_zscore(flow, feats.index, span) if (market == "KR" and flow is not None) else None
 
     events: list[Event] = []
 
@@ -112,26 +89,15 @@ def detect_events(
             sigs.append("gap")
             rule_score += c
 
-        if pd.notna(ath.loc[ts]) and close.loc[ts] > ath[ts]:
+        if pd.notna(ath.loc[ts]) and close.loc[ts] > ath.loc[ts]:
             sigs.append("all_time_high")
             rule_score += w_at
             detail["ath"] = float(ath.loc[ts])
-        if pd.notna(atl.loc[ts]) and close.loc[ts] < atl[ts]:
+        if pd.notna(atl.loc[ts]) and close.loc[ts] < atl.loc[ts]:
             sigs.append("all_time_low")
             rule_score += w_at
             detail["atl"] = float(atl.loc[ts])
 
-        if flow_z is not None and ts in flow_z.index:
-            for col in flow_z.columns:
-                zv = flow_z.at[ts, col]
-                if pd.isna(zv):
-                    continue
-                c = max(0.0, abs(zv) - flow_floor)
-                if c > 0:
-                    if "flow_shift" not in sigs:
-                        sigs.append("flow_shift")
-                    rule_score += c * w_flow
-                    detail[f"flow_z[{col}]"] = round(float(zv), 2)
 
         if_contrib = max(0.0, float(row["if_z"])) * w_if
 
@@ -191,9 +157,9 @@ def detect_sector_breadth(
             scope="sector",
             sector=sec,
             signals=["breadth_surge"],
-            score=round(breadth * 5, 3),
+            score=round(breadth, 2),
             detail={
-                "breadth": round(breadth, 3),
+                "breadth": round(breadth, 2),
                 "n_triggered": len(triggered),
                 "n_members": size,
                 "triggered_tickers": sorted(triggered)[:20]
