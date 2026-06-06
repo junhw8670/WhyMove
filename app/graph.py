@@ -84,16 +84,28 @@ STOCK_ACCOUNTS = {"자산총계", "부채총계", "자본총계"}
 KEY_KR = FLOW_ACCOUNTS | STOCK_ACCOUNTS
 
 
-def _kr_standalone(later: dict[str, float], earlier: dict[str, float]) -> dict[str, float]:
+def _derive_q4(annual: dict[str, float], q1: dict, q2: dict, q3: dict) -> dict[str, float]:
     out: dict[str, float] = {}
     for k in FLOW_ACCOUNTS:
-        if k in later and k in earlier:
-            out[k] = later[k] - earlier[k]
+        if k in annual:
+            out[k] = annual[k] - q1.get(k, 0.0) - q2.get(k, 0.0) - q3.get(k, 0.0)
     for k in STOCK_ACCOUNTS:
-        if k in later:
-            out[k] = later[k]
+        if k in annual:
+            out[k] = annual[k]
     return out
 
+
+def _sum_flow(*reports: dict[str, float]) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for k in FLOW_ACCOUNTS:
+        vals = [r[k] for r in reports if k in r]
+        if vals:
+            out[k] = sum(vals)
+    last = next((r for r in reversed(reports) if r), {})
+    for k in STOCK_ACCOUNTS:
+        if k in last:
+            out[k] = last[k]
+    return out
 
 
 async def scan_universe(
@@ -101,7 +113,7 @@ async def scan_universe(
     market: Market,
     date: str,
     top_n: Optional[int] = None,
-    history_days: int = 180,
+    history_days: int = 1825,
 ) -> list[Event]:
     get_sm = _find(tools["market"], "get_sector_map")
     fetch_ohlcv = _find(tools["market"], "fetch_ohlcv")
@@ -159,7 +171,35 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     edgar_qmul  = _find(tools_by_server["edgar"], "fetch_multi_quarters")
     edgar_ymul  = _find(tools_by_server["edgar"], "fetch_multi_years")
 
-    llm = get_llm("cloud")
+    import os
+    backend = os.getenv("LLM_BACKEND", "cloud")
+    llm = get_llm(backend)
+
+    KR_ACCOUNT_ALIASES: dict[str, set[str]] = {
+        "매출액": {"매출액", "수익(매출액)", "영업수익", "수익"},
+        "영업이익": {"영업이익", "영업손실", "영업이익(손실)"},
+        "당기순이익": {
+            "당기순이익", "분기순이익", "반기순이익",
+            "당기순이익(손실)", "분기순이익(손실)", "반기순이익(손실)",
+            "당기순손실",
+        },
+        "자산총계": {"자산총계"},
+        "부채총계": {"부채총계"},
+        "자본총계": {"자본총계"},
+    }
+
+    _KR_STANDARD_TO_SJ: dict[str, str] = {
+        "매출액": "손익",
+        "영업이익": "손익",
+        "당기순이익": "손익",
+        "자산총계": "재무상태표",
+        "부채총계": "재무상태표",
+        "자본총계": "재무상태표",
+    }
+
+    _KR_ALIAS_TO_KEY: dict[str, str] = {
+        alias: key for key, aliases in KR_ACCOUNT_ALIASES.items() for alias in aliases
+    }
 
     async def _kr_cum(corp_code: str, year: int, report_code: str) -> dict[str, float]:
         raw = await dart_fin.ainvoke({
@@ -170,9 +210,17 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
             raise RuntimeError("dart_financial: invalid MCP payload")
         out: dict[str, float] = {}
         for row in payload.get("accounts", []):
+            standard = _KR_ALIAS_TO_KEY.get(row.get("account_nm", ""))
+            if not standard:
+                continue
+            expected_sj = _KR_STANDARD_TO_SJ.get(standard, "")
+            if expected_sj not in row.get("sj_nm", ""):
+                continue
+            if standard in out:
+                continue
             amt = row.get("thstrm_amount")
-            if row.get("account_nm") in KEY_KR and amt is not None:
-                out[row["account_nm"]] = float(amt)
+            if amt is not None:
+                out[standard] = float(amt)
         return out
 
     async def fetch_news_node(state: GraphState) -> dict:
@@ -196,7 +244,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         if ev.market == "KR":
             corp_code = _stock_to_corp().get(ev.ticker)
             if not corp_code:
-                return {"figures": []}
+                return {"figures": [], "has_filing": False}
 
             bgn = (ev.event_date - timedelta(days=30)).strftime("%Y%m%d")
             end = ev.event_date.strftime("%Y%m%d")
@@ -217,50 +265,60 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
 
             report_code, year = latest
             y_prev = year - 1
-            periods: list[tuple[str, dict[str, float]]] = []
+           
+            cache: dict[tuple[int, str], dict[str, float]] = {}
+
+            async def report(y: int, rc: str) -> dict[str, float]:
+                key = (y, rc)
+                if key not in cache:
+                    cache[key] = await _kr_cum(corp_code, y, rc)
+                return cache[key]
+
+            async def q4(y: int) -> dict[str, float]:
+                return _derive_q4(
+                    await report(y, "11011"),
+                    await report(y, "11013"),
+                    await report(y, "11012"),
+                    await report(y, "11014"),
+                )
+
+            async def h1(y: int) -> dict[str, float]:
+                return _sum_flow(
+                    await report(y, "11013"),
+                    await report(y, "11012"),
+                )
+
+            async def h2(y: int) -> dict[str, float]:
+                return _sum_flow(
+                    await report(y, "11014"),
+                    await q4(y),
+                )
 
             if report_code == "11013":
-                cur_q1 = await _kr_cum(corp_code, year, "11013")
-                prev_annual = await _kr_cum(corp_code, y_prev, "11011")
-                prev_q3cum  = await _kr_cum(corp_code, y_prev, "11014")
-                prev_q1     = await _kr_cum(corp_code, y_prev, "11013")
-                prev_q4     = _kr_standalone(prev_annual, prev_q3cum)
                 periods = [
-                    (f"{year} Q1",   cur_q1),
-                    (f"{y_prev} Q4", prev_q4),
-                    (f"{y_prev} Q1", prev_q1),
+                    (f"{year} Q1",   await report(year, "11013")),
+                    (f"{y_prev} Q4", await q4(y_prev)),
+                    (f"{y_prev} Q1", await report(y_prev, "11013")),
                 ]
             elif report_code == "11012":
-                cur_h1      = await _kr_cum(corp_code, year,   "11012")
-                prev_annual = await _kr_cum(corp_code, y_prev, "11011")
-                prev_h1     = await _kr_cum(corp_code, y_prev, "11012")
-                prev_h2     = _kr_standalone(prev_annual, prev_h1)
                 periods = [
-                    (f"{year} H1",   cur_h1),
-                    (f"{y_prev} H2", prev_h2),
-                    (f"{y_prev} H1", prev_h1),
+                    (f"{year} H1",   await h1(year)),
+                    (f"{y_prev} H2", await h2(y_prev)),
+                    (f"{y_prev} H1", await h1(y_prev)),
                 ]
             elif report_code == "11014":
-                cur_q3cum  = await _kr_cum(corp_code, year,   "11014")
-                cur_h1     = await _kr_cum(corp_code, year,   "11012")
-                cur_q1     = await _kr_cum(corp_code, year,   "11013")
-                prev_q3cum = await _kr_cum(corp_code, y_prev, "11014")
-                prev_h1    = await _kr_cum(corp_code, y_prev, "11012")
-                cur_q3     = _kr_standalone(cur_q3cum, cur_h1)
-                cur_q2     = _kr_standalone(cur_h1, cur_q1)
-                prev_q3    = _kr_standalone(prev_q3cum, prev_h1)
                 periods = [
-                    (f"{year} Q3",   cur_q3),
-                    (f"{year} Q2",   cur_q2),
-                    (f"{y_prev} Q3", prev_q3),
+                    (f"{year} Q3",   await report(year, "11014")),
+                    (f"{year} Q2",   await report(year, "11012")),
+                    (f"{y_prev} Q3", await report(y_prev, "11014")),
                 ]
             elif report_code == "11011":
-                cur_annual  = await _kr_cum(corp_code, year,   "11011")
-                prev_annual = await _kr_cum(corp_code, y_prev, "11011")
                 periods = [
-                    (f"{year} Annual",   cur_annual),
-                    (f"{y_prev} Annual", prev_annual),
+                    (f"{year} Annual",   await report(year, "11011")),
+                    (f"{y_prev} Annual", await report(y_prev, "11011")),
                 ]
+            else:
+                periods = []
             
             figs = [
                 FinancialFigure(label=k, period=label, value=v)
@@ -335,7 +393,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
             f"ticker: {ev.name} ({ev.ticker}, {ev.market}, scope={ev.scope})\n"
             f"date: {ev.event_date}  signal: {', '.join(ev.signals)}\n\n"
             f"news:\n{news_block}\n\n"
-            f"financial figures:\n{figures_block}\n\n"
+            f"financial figures:\n{figures_block} -> flow account(Revenue, OI, NI,...) figures reflect the exact time period, NOT the accumulative figure.\n\n "
             "Include:\n"
             "1) Possible trigger - quote news/financial figures.\n"
             "2) Information quality - note any discrepancies between news and financial figures.\n"
@@ -350,7 +408,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
             figures=figures,
             summary=summary,
             sources=[n.url for n in news if n.url],
-            backend_used="cloud",
+            backend_used=backend,
         )}
     def _should_compose(state: GraphState) -> str:
         if state.get("has_news") or state.get("has_filing"):

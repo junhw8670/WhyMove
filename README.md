@@ -39,13 +39,13 @@ WhyMove/
         signal.py               # 이상탐지, 단일/섹터 분류
         llm_utils.py            # 하이브리드 LLM 스위치
         models.py               # Pydantic State / Event /Memo
-        metrics.py              # 재무비율·수치 계산
     mcp_servers/
         market_server.py        # 주가·거래량·수급
         news_server.py          # 뉴스
-        filings_server.py       # 공시·재무
+        edgar_server.py         # 공시·재무
     scripts/
         calibrate_thresholds.py # 기존 비슷한 사례의 수익률 정보 분석
+        build_us_sector_map.py  # 미국 주식 섹터 매핑 빌드
     docs/                       
         devlog/                 # 개발일지
     streamlit_app.py            # Streamlit UI (대시보드)

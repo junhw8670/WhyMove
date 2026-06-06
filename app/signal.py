@@ -37,7 +37,7 @@ def detect_events(
     name: str = "",
     span: int = 60,
     z_floor: float = 3.0,
-    w_at: float = 1.0,
+    w_5y: float = 1.0,
     w_if: float = 1.5,
     score_cutoff: float = 3.0,
     last_only: bool = False
@@ -56,8 +56,8 @@ def detect_events(
     else:
         feats = feats.assign(if_z=0.0)
 
-    ath = df["Close"].cummax().shift(1).reindex(feats.index)
-    atl = df["Close"].cummin().shift(1).reindex(feats.index)
+    h_5y = df["Close"].cummax().shift(1).reindex(feats.index)
+    l_5y = df["Close"].cummin().shift(1).reindex(feats.index)
     close = df["Close"].reindex(feats.index)
 
     events: list[Event] = []
@@ -74,29 +74,31 @@ def detect_events(
             "if_z": round(float(row["if_z"]), 2),
         }
 
-        c = max(0.0, abs(row["vol_z"]) - z_floor)
+        c = max(0.0, row["vol_z"] - z_floor)
         if c > 0: 
             sigs.append("volume_spike")
             rule_score += c
 
-        c = max(0.0, abs(row["ret_z"]) - z_floor)
+        ret_z = float(row["ret_z"])
+        c = max(0.0, abs(ret_z) - z_floor)
         if c > 0: 
-            sigs.append("price_jump")
+            sigs.append("price_jump_up" if ret_z > 0 else "price_jump_down")
             rule_score += c
 
-        c = max(0.0, abs(row["gap_z"]) - z_floor)
+        gap_z = float(row["gap_z"])
+        c = max(0.0, abs(gap_z) - z_floor)
         if c > 0: 
-            sigs.append("gap")
+            sigs.append("gap_up" if gap_z > 0 else "gap_down")
             rule_score += c
 
-        if pd.notna(ath.loc[ts]) and close.loc[ts] > ath.loc[ts]:
-            sigs.append("all_time_high")
-            rule_score += w_at
-            detail["ath"] = float(ath.loc[ts])
-        if pd.notna(atl.loc[ts]) and close.loc[ts] < atl.loc[ts]:
-            sigs.append("all_time_low")
-            rule_score += w_at
-            detail["atl"] = float(atl.loc[ts])
+        if pd.notna(h_5y.loc[ts]) and close.loc[ts] > h_5y.loc[ts]:
+            sigs.append("5_years_high")
+            rule_score += w_5y
+            detail["h_5y"] = float(h_5y.loc[ts])
+        if pd.notna(l_5y.loc[ts]) and close.loc[ts] < l_5y.loc[ts]:
+            sigs.append("5_years_low")
+            rule_score += w_5y
+            detail["l_5y"] = float(l_5y.loc[ts])
 
 
         if_contrib = max(0.0, float(row["if_z"])) * w_if

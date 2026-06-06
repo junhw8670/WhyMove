@@ -8,8 +8,9 @@ Market = Literal["KR", "US"]
 
 SignalType = Literal[
     "volume_spike",
-    "price_jump",
-    "gap",
+    "price_jump_up",
+    "price_jump_down"
+    "gap_up", "gap_down",
     "all_time_high",
     "all_time_low",
     "anomaly_outlier",
