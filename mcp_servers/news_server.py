@@ -100,7 +100,7 @@ def _fetch_finnhub(symbol: str, frm: str, to: str) -> list[dict]:
 def fetch_news(
     ticker: str, market: str, event_date: str, lookback_days: int = 7, name: Optional[str] = None,
 ) -> dict:
-    """Fetch news within lookback_days to evnet_date.
+    """Fetch news within lookback_days to event_date.
 
     Args:
         ticker: KR 6-digit or US symbol.

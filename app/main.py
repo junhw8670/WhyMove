@@ -4,6 +4,9 @@ import sys
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Optional
+import asyncio
+import logging
+import os
 
 from fastapi import FastAPI, HTTPException
 from langchain_mcp_adapters.tools import load_mcp_tools
@@ -16,7 +19,10 @@ from .graph import build_event_graph, scan_universe
 BASE_DIR = Path(__file__).resolve().parent.parent
 MCP_DIR = BASE_DIR / "mcp_servers"
 
-DART_MCP_PATH = Path("C:/DartCopilot/mcp_servers/dart_server.py")
+_p = os.getenv("DART_MCP_PATH")
+if not _p:
+    raise RuntimeError("DART_MCP_PATH를 .env에 설정하세요")
+DART_MCP_PATH = Path(_p)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -81,13 +87,22 @@ async def scan(payload: ScanRequest) -> dict:
             date=payload.date,
             top_n=payload.top_n,
         )
-        memos = []
-        for ev in events:
-            state = await app.state.graph.ainvoke({"event": ev})
-            if state.get("memo"):
-                memos.append(state["memo"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"scan failed: {e}")
+
+    sem = asyncio.Semaphore(5)
+
+    async def _build_memo(ev):
+        async with sem:
+            try:
+                state = await app.state.graph.ainvoke({"event": ev})
+                return state.get("memo")
+            except Exception as e:
+                logging.warning(f"memo failed for {ev.ticker}: {e}")
+                return None
+        
+        results = await asyncio.gather(*[_build_memo(ev) for ev in events])
+        memos = [m for m in results if m]
 
     return {
         "market": payload.market,

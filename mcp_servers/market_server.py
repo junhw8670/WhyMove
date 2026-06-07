@@ -19,8 +19,10 @@ mcp = FastMCP("Market")
 BASE_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = BASE_DIR / "cache"
 
-DART_INDUSTRY_PATH = Path("C:/DartCopilot/cache/industry_codes.json")
-
+_p = os.getenv("DART_INDUSTRY_PATH")
+if not _p:
+    raise RuntimeError("DART_INDUSTRY_PATH를 .env에 설정하세요")
+DART_INDUSTRY_PATH = Path(_p)
 
 def _rows(df: pd.DataFrame) -> list[dict]:
     if df.empty:

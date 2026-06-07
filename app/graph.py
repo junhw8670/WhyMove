@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
+import os
 
 import pandas as pd
 from langchain_core.tools import BaseTool
@@ -55,9 +56,11 @@ def _parse_tool_payload(content) -> dict | None:
 
 @lru_cache(maxsize=1)
 def _stock_to_corp() -> dict[str, str]:
-    raw = json.loads(
-        Path("C:/DartCopilot/cache/industry_codes.json").read_text(encoding="utf-8")
-    )
+    _p = os.getenv("DART_INDUSTRY_PATH")
+    if not _p:
+        raise RuntimeError("DART_INDUSTRY_PATH를 .env에 설정하세요")
+    path = Path(_p)    
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
     return {e["stock_code"]: cc for cc, e in raw.items() if e.get("stock_code")}
 
 
@@ -155,7 +158,7 @@ async def scan_universe(
 
     results = await asyncio.gather(*[_scan_one(t) for t in tickers])
     all_singles: list[Event] = [ev for chunk in results for ev in chunk]
-    sectors = detect_sector_breadth(all_singles, sm, market)
+    sectors = detect_sector_breadth(all_singles, sm, market, universe=tickers)
 
     return (
         rank_and_cap_daily(all_singles, max_per_day=20)
