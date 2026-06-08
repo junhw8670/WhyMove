@@ -44,7 +44,7 @@ WhyMove/
         news_server.py          # 뉴스
         edgar_server.py         # 공시·재무
     scripts/
-        calibrate_thresholds.py # 기존 비슷한 사례의 수익률 정보 분석
+        signal_backtest.py      # 시그널 별 수익률 백테스트
         build_us_sector_map.py  # 미국 주식 섹터 매핑 빌드
     docs/                       
         devlog/                 # 개발일지
