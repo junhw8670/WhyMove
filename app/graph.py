@@ -16,7 +16,7 @@ import logging
 
 from .llm_utils import get_llm
 from .models import Event, FinancialFigure, GraphState, Market, Memo, NewsItem
-from .signal import detect_events, detect_sector_breadth, rank_and_cap_daily
+from .detect import detect_events, detect_sector_breadth, rank_and_cap_daily
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +173,8 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     edgar_list  = _find(tools_by_server["edgar"], "fetch_filings_around")
     edgar_qmul  = _find(tools_by_server["edgar"], "fetch_multi_quarters")
     edgar_ymul  = _find(tools_by_server["edgar"], "fetch_multi_years")
+    trends_tool = _find(tools_by_server["trends"], "search_spike")
+    trends_sem = asyncio.Semaphore(1)
 
     import os
     backend = os.getenv("LLM_BACKEND", "cloud")
@@ -258,10 +260,12 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
             if payload is None:
                 raise RuntimeError("dart_list: invalid MCP payload")
             latest = None
+            latest_nm = ""
             for f in sorted(payload.get("list", []), key=lambda x: x.get("rcept_dt", ""), reverse=True):
                 parsed = _parse_kr_report(f.get("report_nm", ""))
                 if parsed:
                     latest = parsed
+                    latest_nm = f.get("report_nm", "")
                     break
             if latest is None:
                 return {"figures": [], "has_filing": False}
@@ -327,7 +331,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
                 FinancialFigure(label=k, period=label, value=v)
                 for label, data in periods for k, v in data.items()
             ]
-            return {"figures": figs, "has_filing": True}
+            return {"figures": figs, "has_filing": True, "filing_info": latest_nm}
 
         elif ev.market == "US":
             raw = await edgar_list.ainvoke({
@@ -366,7 +370,8 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
                     for period, metrics in payload.get("by_period", {}).items()
                     for k, v in metrics.items() if v is not None
                 ]
-            return {"figures": figs, "has_filing": True}
+            return {"figures": figs, "has_filing": True, 
+                    "filing_info": f"{periodic[0]['form']} (filed {periodic[0]['filing_date']})"}
 
         return {"figures": [], "has_filing": False}
 
@@ -376,9 +381,41 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         figures = state.get("figures", [])
 
         news_block = "\n".join(
-            f"- [{n.published}] {n.title} ({n.source}) — {n.summary[:120]}"
-            for n in news[:5]
+            f"- [{n.published}] {n.title} ({n.source}) — {n.summary[:500]}"
+            for n in news[:7]
         ) or "(뉴스 없음)"
+
+        filing_info = state.get("filing_info", "")
+
+        d = ev.detail
+        if ev.scope == "single":
+            pa = [f"close {d.get('close')}, daily return {d.get('ret_pct')}%, gap {d.get('gap_pct')}%, volume {d.get('vol_mult')}x normal"]
+            if "h_5y" in d:
+                pa.append(f"broke prior high {d['h_5y']:.0f} (new high)")
+            if "l_5y" in d:
+                pa.append(f"broke below prior low {d['l_5y']:.0f} (new low)")
+            price_block = "\n".join(pa)
+        else:
+            price_block = (f"sector breadth {d.get('breadth')} {d.get('n_triggered')}/{d.get('n_members')} tickers triggered)")
+
+        sv = None
+        if ev.scope == "single":
+            try:
+                async with trends_sem:
+                    raw = await asyncio.wait_for(
+                        trends_tool.ainvoke({
+                            "name": ev.name, "market": ev.market,
+                            "event_date": ev.event_date.isoformat(),
+                        }),
+                        timeout=8,
+                    )
+                    sv = _parse_tool_payload(raw)
+            except Exception:
+                sv = None
+        search_block = (
+            f"search interest {sv['search_mult']}x normal (now {sv['search_now']} vs base {sv['search_base']})"
+            if sv and sv.get("found") and sv.get("search_mult") else "search interest: n/a"
+        )
 
         from collections import defaultdict
         by_label: dict[str, list[FinancialFigure]] = defaultdict(list)
@@ -392,15 +429,33 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         figures_block = "\n".join(lines) or "(재무 없음)"
 
         prompt = (
-            "Compose a Korean memo about the remarkable event below.\n\n"
-            f"ticker: {ev.name} ({ev.ticker}, {ev.market}, scope={ev.scope})\n"
-            f"date: {ev.event_date}  signal: {', '.join(ev.signals)}\n\n"
-            f"news:\n{news_block}\n\n"
-            f"financial figures:\n{figures_block} -> flow account(Revenue, OI, NI,...) figures reflect the exact time period, NOT the accumulative figure.\n\n "
-            "Include:\n"
-            "1) Possible trigger - quote news/financial figures.\n"
-            "2) Information quality - note any discrepancies between news and financial figures.\n"
-            "3) Summary review.\n"
+            f"""Compose a Korean memo about the remarkable event below.
+
+            ticker: {ev.name} ({ev.ticker}, {ev.market}, scope={ev.scope})
+            date: {ev.event_date}  signal: {', '.join(ev.signals)}
+
+            price action:
+            {price_block}
+
+            news:
+            {news_block}
+
+            filing:
+            {filing_info or 'n/a'}
+
+            financial figures:
+            {figures_block} -> flow account(Revenue, OI, NI,...) figures reflect the exact time period, NOT the accumulative figure.
+
+            attention:
+            {search_block}
+
+            Include:
+            1) News digest - summarize and analyze the key news items in detail: what each one reports, the relevant background/context, and its implication for the company.
+            2) Filing & financial analysis - analyze the reported financial figures across the periods shown. Identify notable changes (revenue growth/decline, margin shift, a swing between profit and loss, large balance-sheet moves). State what the latest reported results say about the company's financial condition, and quote the specific figures and period-over-period deltas.
+            3) Possible trigger - link the move to news/financials; note if search interest also spiked (independent attention signal).
+            4) Sufficiency - judge whether the identified cause adequately explains the SIZE of the move; if the catalyst seems insufficient or unclear, say so.
+            5) Summary review.
+            """
         )
 
         result = await llm.ainvoke(prompt)

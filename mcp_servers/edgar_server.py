@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 
 import pandas as pd
@@ -24,7 +24,21 @@ MATERIAL_FORMS = {
     "S-1", "S-3", "S-4", "DEF 14A", "20-F", "6-K", "13F",
 }
 
+DUR = {
+    "Revenue": ["RevenueFromContractWithCustomerExcludingAsssessedTax", "Revenues", "SalesRevenueNet"],
+    "OperatingIncome": ["OperatingIncomeLoss"],
+    "NetIncome": ["NetIncomeLoss"],
+}
+INST = {
+    "TotalAssets": ["Assets"],
+    "TotalLiabilities": ["Liabilities"],
+    "TotalEquity": ["StockholdersEquity"],
+}
+
+
 _ticker_to_cik: dict[str, str] | None = None
+
+
 
 
 def _req(url: str) -> requests.Response:
@@ -32,6 +46,31 @@ def _req(url: str) -> requests.Response:
     r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
     r.raise_for_status()
     return r
+    
+
+def _facts(cik: str) -> dict:
+    return _req(f"{EDGAR_DATA}/api/xbrl/companyfacts/CIK{cik}.json").json().get("facts", {}).get("us-gaap", {})
+
+
+def _flow(facts, concepts, lo, hi):
+    for c in concepts:
+        out = {}
+        for it in facts.get(c, {}).get("units", {}).get("USD", []):
+            s, e, v = it.get("start"), it.get("end"), it.get("val")
+            if s and e and v is not None and lo <= (date.fromisoformat(e) - date.fromisoformat(s)).days <= hi:
+                out[e] = v
+        if out:
+            return out
+    return {}
+
+
+def _inst(facts, concepts):
+    for c in concepts:
+        out = {it["end"]: it["val"] for it in facts.get(c, {}).get("units", {}).get("USD", []) if it.get("end") and it.get("val") is not None}
+        if out:
+            return out
+    return {}
+
 
 def _cik(ticker: str) -> str:
     """Resolve US symbol -> 10-digit CIK string. Lazy-cache the full index on first call."""
@@ -94,109 +133,30 @@ def fetch_filings_around(ticker: str, event_date: str, lookback_days: int = 7) -
 
 @mcp.tool()
 def fetch_multi_quarters(ticker: str, n_quarters: int = 5) -> dict:
-    """Return quarterly figures of last n_quarters (chronological).
+    """as-reported GAAP 분기 수치 (EDGAR XBRL)."""
+    facts = _facts(_cik(ticker))
+    flows = {k: _flow(facts, c, 60, 100) for k, c in DUR.items()}
+    insts = {k: _inst(facts, c) for k, c in INST.items()}
 
-    Returns:
-        {ticker, periods: ['2024-09-30', ...], by_period: {<period>: {...}}}
-    """
-    tk = yf.Ticker(ticker)
-    fin, bs = tk.quarterly_financials, tk.quarterly_balance_sheet
-    if fin.empty:
-        raise ValueError(f"No US quarterly financial for {ticker}")
-
-    cols = list(fin.columns[:n_quarters])[::-1]
-    periods = [c.strftime("%Y-%m-%d") for c in cols]
-
-    def _val(df: pd.DataFrame, name: str, col) -> Optional[float]:
-        if name not in df.index:
-            return None
-        v = df.at[name, col]
-        return None if pd.isna(v) else float(v)
-
+    ends = sorted(flows["NetIncome"])[-n_quarters:]
     by_period = {
-        periods[i]: {
-            "Revenue":          _val(fin, "Total Revenue", cols[i]),
-            "OperatingIncome":  _val(fin, "Operating Income", cols[i]),
-            "NetIncome":        _val(fin, "Net Income", cols[i]),
-            "TotalAssets":      _val(bs,  "Total Assets", cols[i]),
-            "TotalLiabilities": _val(bs,  "Total Liabilities Net Minority Interest", cols[i]),
-            "TotalEquity":      _val(bs,  "Stockholders Equity", cols[i]),
-        }
-        for i in range(len(cols))
+        e: {**{k: flows[k].get(e) for k in DUR},
+            **{k: insts[k].get(e) for k in INST}}
+        for e in ends
     }
-    return {"ticker": ticker, "periods": periods, "by_period": by_period}
+    return {"ticker": ticker, "periods": ends, "by_period": by_period}
 
 
 @mcp.tool()
 def fetch_multi_years(ticker: str, n_years: int = 5) -> dict:
-    """Return last n_years of annual figures (chronological) + YoY growth %.
-
-    Args:
-        ticker: US symbol.
-        n_years: number of years being fetched. Default 5.
-
-    Returns:
-        {
-            "ticker": "AAPL",
-            "years": [2021, 2022, 2023, 2024, 2025],
-            "by_year": {
-                2021: {Revenue, OperatingIncome, ..., TotalEquity},
-                2022: {...},
-                ...
-            },
-            "growth_rates": {
-                "Revenue": [0, 7.5, 2.0, -2.1, 5.1],
-                "OperatingIncome": [...],
-                ...
-            }
-        }
-    """
-    tk = yf.Ticker(ticker)
-    fin, bs = tk.financials, tk.balance_sheet
-    if fin.empty:
-        raise ValueError(f"No US financial for {ticker}")
-
-    cols = list(fin.columns[:n_years])[::-1]
-    years = [c.year for c in cols]
-
-    def _val(df: pd.DataFrame, name: str, col) -> Optional[float]:
-        if name not in df.index:
-            return None
-        v = df.at[name, col]
-        return None if pd.isna(v) else float(v)
-
-    by_year = {
-        y: {
-            "Revenue":          _val(fin, "Total Revenue", c),
-            "OperatingIncome":  _val(fin, "Operating Income", c),
-            "NetIncome":        _val(fin, "Net Income", c),
-            "TotalAssets":      _val(bs, "Total Assets", c),
-            "TotalLiabilities": _val(bs, "Total Liabilities Net Minority Interest", c),
-            "TotalEquity":      _val(bs, "Stockholders Equity", c),
-        }
-        for y, c in zip(years, cols)
-    }
-
-    def _growth(series: list[Optional[float]]) -> list[Optional[float]]:
-        out: list[Optional[float]] = [None]
-        for prev, cur in zip(series, series[1:]):
-            if prev in (None, 0) or cur is None:
-                out.append(None)
-            else:
-                out.append(round((cur - prev) / abs(prev) * 100, 2))
-        return out
-    
-    growth_rates = {
-        key: _growth([by_year[y][key] for y in years])
-        for key in by_year[years[0]]
-    }
-
-    return {
-        "ticker": ticker,
-        "years": years,
-        "by_year": by_year,
-        "growth_rates": growth_rates,
-    }
+    """as-reported GAAP 연간 수치 (EDGAR XBRL)."""
+    facts = _facts(_cik(ticker))
+    flows = {k: _flow(facts, c, 330, 400) for k, c in DUR.items()}
+    insts = {k: _inst(facts, c) for k, c in INST.items()}
+    ends = sorted(flows["NetIncome"])[-n_years:]
+    by_year = {int(e[:4]): {**{k: flows[k].get(e) for k in DUR},
+                            **{k: insts[k].get(e) for k in INST}} for e in ends}
+    return {"ticker": ticker, "years": [int(e[:4]) for e in ends], "by_year": by_year}
 
 
 if __name__ == "__main__":

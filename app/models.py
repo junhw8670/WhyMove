@@ -60,4 +60,5 @@ class GraphState(TypedDict, total=False):
     has_news: bool
     has_filing: bool
     figures: list[FinancialFigure]
+    filing_info: str
     memo: Memo

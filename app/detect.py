@@ -17,7 +17,9 @@ def build_features(df: pd.DataFrame, span: int = 60) -> pd.DataFrame:
 
     vmean = df["Volume"].ewm(span=span).mean()
     vstd = df["Volume"].ewm(span=span).std()    
+    
     out["vol_z"] = (df["Volume"] - vmean) / (vstd + 1e-9)
+    out["vol_mult"] = df["Volume"] / (vmean + 1e-9)
 
     out["gap"] = df["Open"] / df["Close"].shift(1) - 1
 
@@ -33,9 +35,9 @@ def detect_events(
     market: Market,
     name: str = "",
     span: int = 60,
-    z_floor: float = 3.0,
-    w_5y: float = 1.0,
-    score_cutoff: float = 3.0,
+    z_floor: float = 2.5,
+    w_5y: float = 0.5,
+    score_cutoff: float = 1.5,
     last_only: bool = False
 ) -> list[Event]:
     feats = build_features(df, span)
@@ -54,6 +56,10 @@ def detect_events(
         score = 0.0
 
         detail: dict = {
+            "close": round(float(close.loc[ts]), 2),
+            "ret_pct": round(float(row["ret"]) * 100, 2),
+            "gap_pct": round(float(row["gap"]) * 100, 2),
+            "vol_mult": round(float(row["vol_mult"]), 2),
             "vol_z": round(float(row["vol_z"]), 2),
             "ret_z": round(float(row["ret_z"]), 2),
             "gap_z": round(float(row["gap_z"]), 2),
@@ -86,9 +92,6 @@ def detect_events(
             detail["l_5y"] = float(l_5y.loc[ts])
 
         if score >= score_cutoff:
-            if not sigs:
-                sigs.append("anomaly_outlier")
-
             events.append(
                 Event(
                     ticker=ticker,
@@ -108,7 +111,7 @@ def detect_sector_breadth(
     events: Iterable[Event],
     sector_map: dict[str, str],
     market: Market,
-    breadth_floor: float = 0.5,
+    breadth_floor: float = 0.3,
     min_members: int = 5,
     universe: Optional[Iterable[str]] = None,
 ) -> list[Event]:

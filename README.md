@@ -39,6 +39,7 @@ WhyMove/
         signal.py               # 이상탐지, 단일/섹터 분류
         llm_utils.py            # 하이브리드 LLM 스위치
         models.py               # Pydantic State / Event /Memo
+        search_trends.py        # 검색량 탐지
     mcp_servers/
         market_server.py        # 주가·거래량·수급
         news_server.py          # 뉴스

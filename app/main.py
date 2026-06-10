@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
             ("market", MCP_DIR / "market_server.py"),
             ("edgar", MCP_DIR / "edgar_server.py"),
             ("news",   MCP_DIR / "news_server.py"),
+            ("trends", MCP_DIR / "trends_server.py"),
             ("dart",   DART_MCP_PATH),
         ]
     
@@ -101,8 +102,8 @@ async def scan(payload: ScanRequest) -> dict:
                 logging.warning(f"memo failed for {ev.ticker}: {e}")
                 return None
         
-        results = await asyncio.gather(*[_build_memo(ev) for ev in events])
-        memos = [m for m in results if m]
+    results = await asyncio.gather(*[_build_memo(ev) for ev in events])
+    memos = [m for m in results if m]
 
     return {
         "market": payload.market,

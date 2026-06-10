@@ -54,7 +54,8 @@ def fetch_ohlcv(ticker:str, market:str, start: str, end: str) -> dict:
             "종가": "Close", "거래량": "Volume",
         })[["Open", "High", "Low", "Close", "Volume"]]
     elif market == "US":
-        df = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=False)
+        end_incl = (pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        df = yf.Ticker(ticker).history(start=start, end=end_incl, auto_adjust=True)
         df = df[["Open", "High", "Low", "Close", "Volume"]]
     else:
         raise ValueError(f"Unknown market: {market!r}")
