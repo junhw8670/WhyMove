@@ -161,8 +161,8 @@ async def scan_universe(
     sectors = detect_sector_breadth(all_singles, sm, market, universe=tickers)
 
     return (
-        rank_and_cap_daily(all_singles, max_per_day=20)
-        + rank_and_cap_daily(sectors, max_per_day=5)
+        rank_and_cap_daily(all_singles, max_per_day=10)
+        + rank_and_cap_daily(sectors, max_per_day=3)
     )
 
 

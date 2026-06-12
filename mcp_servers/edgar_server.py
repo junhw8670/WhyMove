@@ -25,7 +25,7 @@ MATERIAL_FORMS = {
 }
 
 DUR = {
-    "Revenue": ["RevenueFromContractWithCustomerExcludingAsssessedTax", "Revenues", "SalesRevenueNet"],
+    "Revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
     "OperatingIncome": ["OperatingIncomeLoss"],
     "NetIncome": ["NetIncomeLoss"],
 }

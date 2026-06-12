@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.signal import detect_events
+from app.detect import detect_events
 
 US_SECTOR_MAP = ROOT / "cache" / "us_sector_map.json"
 DART_INDUSTRY = Path("C:/DartCopilot/cache/industry_codes.json")
