@@ -116,55 +116,64 @@ async def scan_universe(
     market: Market,
     date: str,
     top_n: Optional[int] = None,
-    history_days: int = 1825,
+    history_days: int = 370,
 ) -> list[Event]:
     get_sm = _find(tools["market"], "get_sector_map")
-    fetch_ohlcv = _find(tools["market"], "fetch_ohlcv")
-
-    sm: dict[str, str] = {}
     raw = await get_sm.ainvoke({"market": market})
     payload = _parse_tool_payload(raw)
     if payload is None:
         raise RuntimeError("get_sector_map: invalid MCP payload")
     sm = payload["sector_map"]
 
-    tickers = list(sm.keys())[: int(top_n)] if top_n else list(sm.keys())
+    end = datetime.strptime(date.replace("-", ""), "%Y%m%d").date()
+    st = pd.Timestamp(end - timedelta(days=history_days))
 
-    end_date = datetime.strptime(date.replace("-", ""), "%Y%m%d").date()
-    start_str = (end_date - timedelta(days=history_days)).strftime("%Y-%m-%d")
-    end_str = end_date.strftime("%Y-%m-%d")
+    frames: list[tuple[str, pd.DataFrame]] = []
+    if market == "KR":
+        from .kr_cache import update, CACHE
+        if not CACHE.exists():
+            raise RuntimeError("Execute `python -m app.kr_cache`.")
+        try:
+            cache = update(upto=end)
+        except Exception as e:
+            logger.warning(f"KR cache update failed, using stale: {e}")
+            cache = pd.read_parquet(CACHE)
 
-    sem = asyncio.Semaphore(8)
+        cache = cache[cache["date"] <= pd.Timestamp(end)]
+        live = set(cache.loc[cache["date"] == cache["date"].max(), "ticker"])
+        tickers = list(live)[:top_n] if top_n else list(live)
+        for t, g in cache[cache["ticker"].isin(tickers)].groupby("ticker"):
+            df = g[g["date"] >= st].set_index("date").sort_index()
+            frames.append((t, df[["Open", "High", "Low", "Close", "Volume"]]))
+    else:
+        fetch = _find(tools["market"], "fetch_ohlcv")
+        tickers = list(sm)[:top_n] if top_n else list(sm)
+        sem = asyncio.Semaphore(8)
 
-    async def _scan_one(ticker: str) -> list[Event]:
-        async with sem:
-            try:
-                raw = await fetch_ohlcv.ainvoke({
-                    "ticker": ticker, "market": market,
-                    "start": start_str, "end": end_str,
-                })
-                payload = _parse_tool_payload(raw)
-                if payload is None:
-                    raise RuntimeError("fetch_ohlcv: invalid MCP payload")
-                rows = payload.get("rows", [])
-                if not rows:
-                    return []
-                df = pd.DataFrame(rows).set_index("date")
-                df.index = pd.to_datetime(df.index)
-                return detect_events(df, ticker, market, last_only=True)
-            except Exception as e:
-                logger.warning(f"_scan_one({ticker}) failed: {e}")
-                return []
+        async def grab(ticker: str) -> None:
+            async with sem:
+                try:
+                    r = await asyncio.wait_for(fetch.ainvoke({
+                        "ticker": ticker, "market": market,
+                        "start": st.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),
+                    }), 15)
+                    rows = (_parse_tool_payload(r) or {}).get("rows", [])
+                    if rows:
+                        df = pd.DataFrame(rows).set_index("date")
+                        df.index = pd.to_datetime(df.index)
+                        frames.append((ticker, df))
+                except Exception as e:
+                    logger.warning(f"grab({ticker}): {e}")
 
-    results = await asyncio.gather(*[_scan_one(t) for t in tickers])
-    all_singles: list[Event] = [ev for chunk in results for ev in chunk]
-    sectors = detect_sector_breadth(all_singles, sm, market, universe=tickers)
-
+        await asyncio.gather(*[grab(t) for t in tickers])
+        
+    singles = [ev for t, df in frames for ev in detect_events(df, t, market, last_only=True)]
+    sectors = detect_sector_breadth(singles, sm, market, universe=[t for t, _ in frames])
     return (
-        rank_and_cap_daily(all_singles, max_per_day=10)
+        rank_and_cap_daily(singles, max_per_day=10)
         + rank_and_cap_daily(sectors, max_per_day=3)
     )
-
+    
 
 def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     news_tool = _find(tools_by_server["news"], "fetch_news")
@@ -390,32 +399,33 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         d = ev.detail
         if ev.scope == "single":
             pa = [f"close {d.get('close')}, daily return {d.get('ret_pct')}%, gap {d.get('gap_pct')}%, volume {d.get('vol_mult')}x normal"]
-            if "h_5y" in d:
-                pa.append(f"broke prior high {d['h_5y']:.0f} (new high)")
-            if "l_5y" in d:
-                pa.append(f"broke below prior low {d['l_5y']:.0f} (new low)")
+            if "h_52w" in d:
+                pa.append(f"broke prior high {d['h_52w']:.0f} (new high)")
+            if "l_52w" in d:
+                pa.append(f"broke below prior low {d['l_52w']:.0f} (new low)")
             price_block = "\n".join(pa)
         else:
             price_block = (f"sector breadth {d.get('breadth')} {d.get('n_triggered')}/{d.get('n_members')} tickers triggered)")
 
         sv = None
-        if ev.scope == "single":
-            try:
-                async with trends_sem:
-                    raw = await asyncio.wait_for(
-                        trends_tool.ainvoke({
-                            "name": ev.name, "market": ev.market,
-                            "event_date": ev.event_date.isoformat(),
-                        }),
-                        timeout=8,
-                    )
-                    sv = _parse_tool_payload(raw)
-            except Exception:
-                sv = None
-        search_block = (
-            f"search interest {sv['search_mult']}x normal (now {sv['search_now']} vs base {sv['search_base']})"
-            if sv and sv.get("found") and sv.get("search_mult") else "search interest: n/a"
-        )
+        search_block = "search interest: n/a"
+        # if ev.scope == "single":
+        #     try:
+        #         async with trends_sem:
+        #             raw = await asyncio.wait_for(
+        #                 trends_tool.ainvoke({
+        #                     "name": ev.name, "market": ev.market,
+        #                     "event_date": ev.event_date.isoformat(),
+        #                 }),
+        #                 timeout=8,
+        #             )
+        #             sv = _parse_tool_payload(raw)
+        #     except Exception:
+        #         sv = None
+        # search_block = (
+        #     f"search interest {sv['search_mult']}x normal (now {sv['search_now']} vs base {sv['search_base']})"
+        #     if sv and sv.get("found") and sv.get("search_mult") else "search interest: n/a"
+        # )
 
         from collections import defaultdict
         by_label: dict[str, list[FinancialFigure]] = defaultdict(list)

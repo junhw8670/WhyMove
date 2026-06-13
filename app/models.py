@@ -12,8 +12,8 @@ SignalType = Literal[
     "price_jump_down",
     "gap_up", 
     "gap_down",
-    "5_years_high",
-    "5_years_low",
+    "52_weeks_high",
+    "52_weeks_low",
     "breadth_surge",
 ]
 

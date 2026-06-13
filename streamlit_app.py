@@ -66,7 +66,7 @@ if submit:
                     "date": target_date.isoformat(),
                     "top_n": int(top_n),
                 },
-                timeout=600,
+                timeout=1200,
             )
             r.raise_for_status()
             st.session_state.result = r.json()

@@ -36,7 +36,7 @@ def detect_events(
     name: str = "",
     span: int = 60,
     z_floor: float = 2.5,
-    w_5y: float = 0.5,
+    w_52w: float = 0.5,
     score_cutoff: float = 1.5,
     last_only: bool = False
 ) -> list[Event]:
@@ -44,8 +44,8 @@ def detect_events(
     if len(feats) < span:
         return []
 
-    h_5y = df["Close"].cummax().shift(1).reindex(feats.index)
-    l_5y = df["Close"].cummin().shift(1).reindex(feats.index)
+    h_52w = df["Close"].cummax().shift(1).reindex(feats.index)
+    l_52w = df["Close"].cummin().shift(1).reindex(feats.index)
     close = df["Close"].reindex(feats.index)
 
     events: list[Event] = []
@@ -82,14 +82,14 @@ def detect_events(
             sigs.append("gap_up" if gap_z > 0 else "gap_down")
             score += c
 
-        if pd.notna(h_5y.loc[ts]) and close.loc[ts] > h_5y.loc[ts]:
-            sigs.append("5_years_high")
-            score += w_5y
-            detail["h_5y"] = float(h_5y.loc[ts])
-        if pd.notna(l_5y.loc[ts]) and close.loc[ts] < l_5y.loc[ts]:
-            sigs.append("5_years_low")
-            score += w_5y
-            detail["l_5y"] = float(l_5y.loc[ts])
+        if pd.notna(h_52w.loc[ts]) and close.loc[ts] > h_52w.loc[ts]:
+            sigs.append("52_weeks_high")
+            score += w_52w
+            detail["h_52w"] = float(h_52w.loc[ts])
+        if pd.notna(l_52w.loc[ts]) and close.loc[ts] < l_52w.loc[ts]:
+            sigs.append("52_weeks_low")
+            score += w_52w
+            detail["l_52w"] = float(l_52w.loc[ts])
 
         if score >= score_cutoff:
             events.append(
