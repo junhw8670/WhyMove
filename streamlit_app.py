@@ -28,7 +28,9 @@ with st.sidebar:
         index=0,
         help="KR = pykrx·DART·Naver / US = yfinance·EDGAR·Finnhub",
     )
-
+    kr_market = st.selectbox(
+        "KR 세부시장", ["ALL", "KOSPI", "KOSDAQ"], index=0,
+    )
     target_date = st.date_input(
         "거래일",
         value=date(2025, 5, 30),
@@ -41,7 +43,7 @@ with st.sidebar:
         max_value=3000,
         value=100,
         step=10,
-        help="앞에서 N 종목만 스캔 (전체면 매우 느림)",
+        help="시총 상위 N개 종목 스캔",
     )
 
     submit = st.button("스캔 실행", type="primary", use_container_width=True)
@@ -65,6 +67,7 @@ if submit:
                     "market": market,
                     "date": target_date.isoformat(),
                     "top_n": int(top_n),
+                    "kr_market": kr_market,
                 },
                 timeout=1200,
             )

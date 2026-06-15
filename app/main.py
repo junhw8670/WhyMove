@@ -65,6 +65,7 @@ class ScanRequest(BaseModel):
     market: str
     date: str
     top_n: Optional[int] = None
+    kr_market: Optional[str] = "ALL"
 
 
 @app.post("/api/whymove/scan")
@@ -87,6 +88,7 @@ async def scan(payload: ScanRequest) -> dict:
             market=payload.market,
             date=payload.date,
             top_n=payload.top_n,
+            kr_market=payload.kr_market or "ALL"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"scan failed: {e}")

@@ -117,6 +117,7 @@ async def scan_universe(
     date: str,
     top_n: Optional[int] = None,
     history_days: int = 370,
+    kr_market: str = "ALL",
 ) -> list[Event]:
     get_sm = _find(tools["market"], "get_sector_map")
     raw = await get_sm.ainvoke({"market": market})
@@ -131,6 +132,7 @@ async def scan_universe(
     frames: list[tuple[str, pd.DataFrame]] = []
     if market == "KR":
         from .kr_cache import update, CACHE
+        from pykrx import stock
         if not CACHE.exists():
             raise RuntimeError("Execute `python -m app.kr_cache`.")
         try:
@@ -141,13 +143,32 @@ async def scan_universe(
 
         cache = cache[cache["date"] <= pd.Timestamp(end)]
         live = set(cache.loc[cache["date"] == cache["date"].max(), "ticker"])
-        tickers = list(live)[:top_n] if top_n else list(live)
+        
+        base = cache["date"].max().strftime("%Y%m%d")
+        mkts = [kr_market] if kr_market in ("KOSPI", "KOSDAQ") else ["KOSPI", "KOSDAQ"]
+        try:
+            cap = pd.concat([stock.get_market_cap_by_ticker(base, market=m)["시가총액"] for m in mkts])
+            ranked = [t for t in cap.sort_values(ascending=False).index if t in live]
+            tickers = ranked[:top_n] if top_n else ranked
+        except Exception as e:
+            logger.warning(f"market cap fetch failed: {e}")
+            tickers = list(live)[:top_n] if top_n else list(live)
+
         for t, g in cache[cache["ticker"].isin(tickers)].groupby("ticker"):
-            df = g[g["date"] >= st].set_index("date").sort_index()
-            frames.append((t, df[["Open", "High", "Low", "Close", "Volume"]]))
+            df = g[g["date"] >= st].set_index("date").sort_index()[["Open", "High", "Low", "Close", "Volume"]]
+            if len(df) < 60 or (df["Close"] * df["Volume"]).median() < 1e8:
+                continue
+            frames.append((t, df))
     else:
         fetch = _find(tools["market"], "fetch_ohlcv")
-        tickers = list(sm)[:top_n] if top_n else list(sm)
+        tickers = list(sm)
+        if top_n:
+            cap_path = Path(__file__).resolve().parent.parent / "cache" / "us_marketcap.json"
+            if cap_path.exists():
+                caps = json.loads(cap_path.read_text(encoding="utf-8"))
+                tickers = sorted((t for t in tickers if t in caps), key=lambda t: caps[t], reverse=True)[:top_n]
+            else:
+                tickers = tickers[:top_n]
         sem = asyncio.Semaphore(8)
 
         async def grab(ticker: str) -> None:

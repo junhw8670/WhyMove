@@ -10,6 +10,7 @@ import yfinance as yf
 
 
 CACHE_PATH = Path(__file__).resolve().parent.parent / "cache" / "us_sector_map.json"
+CAP_PATH = CACHE_PATH.parent / "us_marketcap.json"
 
 
 def fetch_sp500_tickers() -> list[str]:
@@ -25,12 +26,16 @@ def main() -> None:
     print(f"{len(tickers)} 개")
 
     mapping: dict[str, str] = {}
+    caps: dict[str, int] = {}
     for i, t in enumerate(tickers, 1):
         try:
             info = yf.Ticker(t).info
             sector = info.get("sector") or ""
             if sector:
                 mapping[t] = sector
+            mc = info.get("marketCap")
+            if mc:
+                caps[t] = mc
         except Exception as e:
             print(f"{i}/{len(tickers)} {t}: error {e}")
             continue
@@ -45,7 +50,11 @@ def main() -> None:
         json.dumps(mapping, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    print(f"Saved {len(mapping)} entries → {CACHE_PATH}")
+    CAP_PATH.write_text(
+        json.dumps(caps, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+    print(f"Saved {len(mapping)} entries → {CACHE_PATH}, {CAP_PATH}")
 
 
 if __name__ == "__main__":

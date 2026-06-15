@@ -37,7 +37,7 @@ def detect_events(
     span: int = 60,
     z_floor: float = 2.5,
     w_52w: float = 0.5,
-    score_cutoff: float = 1.5,
+    score_cutoff: float = 1.0,
     last_only: bool = False
 ) -> list[Event]:
     feats = build_features(df, span)
