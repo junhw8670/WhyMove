@@ -169,6 +169,7 @@ async def scan_universe(
                 tickers = sorted((t for t in tickers if t in caps), key=lambda t: caps[t], reverse=True)[:top_n]
             else:
                 tickers = tickers[:top_n]
+
         sem = asyncio.Semaphore(8)
 
         async def grab(ticker: str) -> None:
@@ -213,11 +214,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     KR_ACCOUNT_ALIASES: dict[str, set[str]] = {
         "매출액": {"매출액", "수익(매출액)", "영업수익", "수익"},
         "영업이익": {"영업이익", "영업손실", "영업이익(손실)"},
-        "당기순이익": {
-            "당기순이익", "분기순이익", "반기순이익",
-            "당기순이익(손실)", "분기순이익(손실)", "반기순이익(손실)",
-            "당기순손실",
-        },
+        "당기순이익": {"당기순이익", "분기순이익", "반기순이익", "당기순이익(손실)", "분기순이익(손실)", "반기순이익(손실)", "당기순손실"},
         "자산총계": {"자산총계"},
         "부채총계": {"부채총계"},
         "자본총계": {"자본총계"},
@@ -426,7 +423,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
                 pa.append(f"broke below prior low {d['l_52w']:.0f} (new low)")
             price_block = "\n".join(pa)
         else:
-            price_block = (f"sector breadth {d.get('breadth')} {d.get('n_triggered')}/{d.get('n_members')} tickers triggered)")
+            price_block = (f"sector breadth {d.get('breadth')} {d.get('n_triggered')}/{d.get('n_members')} tickers triggered/tickers: {d.get('triggered_tickers')}")
 
         sv = None
         search_block = "search interest: n/a"
@@ -500,7 +497,8 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
             backend_used=backend,
         )}
     def _should_compose(state: GraphState) -> str:
-        if state.get("has_news") or state.get("has_filing"):
+        ev = state["event"]
+        if ev.scope == "sector" or state.get("has_news") or state.get("has_filing"):
             return "compose_memo"
         return END
 

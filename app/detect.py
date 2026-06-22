@@ -13,7 +13,6 @@ def build_features(df: pd.DataFrame, span: int = 60) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
 
     out["ret"] = df["Close"].pct_change()
-    out["ret_abs"] = out["ret"].abs()
 
     vmean = df["Volume"].ewm(span=span).mean()
     vstd = df["Volume"].ewm(span=span).std()    
@@ -46,6 +45,7 @@ def detect_events(
 
     h_52w = df["Close"].cummax().shift(1).reindex(feats.index)
     l_52w = df["Close"].cummin().shift(1).reindex(feats.index)
+    start = df["Open"].reindex(feats.index)
     close = df["Close"].reindex(feats.index)
 
     events: list[Event] = []
@@ -56,6 +56,7 @@ def detect_events(
         score = 0.0
 
         detail: dict = {
+            "open": round(float(start.loc[ts]), 2),
             "close": round(float(close.loc[ts]), 2),
             "ret_pct": round(float(row["ret"]) * 100, 2),
             "gap_pct": round(float(row["gap"]) * 100, 2),
@@ -140,22 +141,25 @@ def detect_sector_breadth(
         if breadth < breadth_floor:
             continue
         
-        sector_events.append(Event(
-            ticker=sec,
-            name=sec,
-            market=market,
-            event_date=day,
-            scope="sector",
-            sector=sec,
-            signals=["breadth_surge"],
-            score=round(breadth, 2),
-            detail={
-                "breadth": round(breadth, 2),
-                "n_triggered": len(triggered),
-                "n_members": size,
-                "triggered_tickers": sorted(triggered)[:20]
-            },
-        ))
+        sector_events.append(
+            Event(
+                ticker=sec,
+                name=sec,
+                market=market,
+                event_date=day,
+                scope="sector",
+                sector=sec,
+                signals=["breadth_surge"],
+                score=round(breadth, 2),
+                detail={
+                    "breadth": round(breadth, 2),
+                    "n_triggered": len(triggered),
+                    "n_members": size,
+                    "triggered_tickers": sorted(triggered)[:20]
+                },
+            )
+        )
+        
     return sector_events    
 
 
