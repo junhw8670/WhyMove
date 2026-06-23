@@ -9,7 +9,6 @@ import pandas as pd
 import yfinance as yf
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
-from pykrx import stock
 
 
 load_dotenv()
@@ -35,25 +34,17 @@ def _rows(df: pd.DataFrame) -> list[dict]:
 
 @mcp.tool()
 def fetch_ohlcv(ticker:str, market:str, start: str, end: str) -> dict:
-    """Fetch daily OHLCV. KR via pykrx, US via yfinance.
+    """Fetch US daily OHLCV via yfinance.
 
     Args:
-        ticker: KR 6-digit code or US symbol.
-        market: 'KR' or 'US'.
+        ticker: US symbol.
+        market: 'US'.
         start, end: 'YYYY-MM-DD' or 'YYYYMMDD'.
 
     Returns:
         {ticker, market, rows: [{date, Open, High, Low, Close, Volume}, ...]}
     """
-    if market == "KR":
-        df = stock.get_market_ohlcv_by_date(
-            start.replace("-", ""), end.replace("-", ""), ticker
-        )
-        df = df.rename(columns={
-            "시가": "Open", "고가": "High", "저가": "Low",
-            "종가": "Close", "거래량": "Volume",
-        })[["Open", "High", "Low", "Close", "Volume"]]
-    elif market == "US":
+    if market == "US":
         end_incl = (pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
         df = yf.Ticker(ticker).history(start=start, end=end_incl, auto_adjust=True)
         df = df[["Open", "High", "Low", "Close", "Volume"]]

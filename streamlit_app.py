@@ -8,7 +8,6 @@ import streamlit as st
 
 API_URL = "http://127.0.0.1:8000/api/whymove/scan"
 
-# ─── 페이지 설정 ─────────────────────────────────────────
 st.set_page_config(
     page_title="WhyMove",
     page_icon="📊",
@@ -18,7 +17,6 @@ st.set_page_config(
 st.title("WhyMove")
 st.caption("시장 신호 탐지 → 뉴스·공시 추적 → AI 분석 메모")
 
-# ─── 사이드바 — 입력 폼 ──────────────────────────────────
 with st.sidebar:
     st.header("스캔 설정")
 
@@ -28,32 +26,28 @@ with st.sidebar:
         index=0,
         help="KR = pykrx·DART·Naver / US = yfinance·EDGAR·Finnhub",
     )
-    kr_market = st.selectbox(
-        "KR 세부시장", ["ALL", "KOSPI", "KOSDAQ"], index=0,
-    )
+    if market == "KR":
+        kr_market = st.selectbox("KR 세부시장", ["ALL", "KOSPI", "KOSDAQ"], index=0)
+
     target_date = st.date_input(
         "거래일",
-        value=date(2025, 5, 30),
+        value=date.today(),
         help="이 거래일의 종가 기준으로 신호 탐지",
     )
 
     top_n = st.number_input(
-        "Universe top N",
+        "조회 종목 수",
         min_value=1,
         max_value=3000,
         value=100,
-        step=10,
+        step=100,
         help="시총 상위 N개 종목 스캔",
     )
 
     submit = st.button("스캔 실행", type="primary", use_container_width=True)
 
     st.divider()
-    st.caption(
-        "메모 1건당 LLM 1회 호출. "
-        "n_events 가 많을수록 응답 시간·토큰 비용 증가."
-    )
-
+    
 
 if "result" not in st.session_state:
     st.session_state.result = None
@@ -61,16 +55,14 @@ if "result" not in st.session_state:
 if submit:
     with st.spinner(f"{market} 시장 / {target_date} / top {top_n}종목 스캔 중..."):
         try:
-            r = requests.post(
-                API_URL,
-                json={
-                    "market": market,
-                    "date": target_date.isoformat(),
-                    "top_n": int(top_n),
-                    "kr_market": kr_market,
-                },
-                timeout=1200,
-            )
+            body = {
+                "market": market,
+                "date": target_date.isoformat(),
+                "top_n": int(top_n),
+            }
+            if market == "KR":
+                body["kr_market"] = kr_market
+            r = requests.post(API_URL, json=body, timeout=1200)
             r.raise_for_status()
             st.session_state.result = r.json()
         except requests.exceptions.HTTPError as e:

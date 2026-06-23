@@ -42,7 +42,6 @@ _ticker_to_cik: dict[str, str] | None = None
 
 
 def _req(url: str) -> requests.Response:
-    """EDGAR HTTP GET with required User-Agent + error guard."""
     r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
     r.raise_for_status()
     return r
@@ -73,7 +72,6 @@ def _inst(facts, concepts):
 
 
 def _cik(ticker: str) -> str:
-    """Resolve US symbol -> 10-digit CIK string. Lazy-cache the full index on first call."""
     global _ticker_to_cik
     if _ticker_to_cik is None:
         raw = _req(f"{EDGAR}/files/company_tickers.json").json()
@@ -88,8 +86,7 @@ def _cik(ticker: str) -> str:
 
 @mcp.tool()
 def fetch_filings_around(ticker: str, event_date: str, lookback_days: int = 7) -> dict:
-    """Find material SEC filings from lookback_days to event_date.
-
+    """
     Args:
         ticker: US symbol
         event_date: 'YYYY-MM-DD' or 'YYYYMMDD'.
@@ -133,17 +130,14 @@ def fetch_filings_around(ticker: str, event_date: str, lookback_days: int = 7) -
 
 @mcp.tool()
 def fetch_multi_quarters(ticker: str, n_quarters: int = 5) -> dict:
-    """as-reported GAAP 분기 수치 (EDGAR XBRL)."""
+    """as-reported GAAP quarter figures (EDGAR XBRL)."""
     facts = _facts(_cik(ticker))
     flows = {k: _flow(facts, c, 60, 100) for k, c in DUR.items()}
     insts = {k: _inst(facts, c) for k, c in INST.items()}
 
     ends = sorted(flows["NetIncome"])[-n_quarters:]
-    by_period = {
-        e: {**{k: flows[k].get(e) for k in DUR},
-            **{k: insts[k].get(e) for k in INST}}
-        for e in ends
-    }
+    by_period = {e: {**{k: flows[k].get(e) for k in DUR},
+                     **{k: insts[k].get(e) for k in INST}} for e in ends}
     return {"ticker": ticker, "periods": ends, "by_period": by_period}
 
 
@@ -153,6 +147,7 @@ def fetch_multi_years(ticker: str, n_years: int = 5) -> dict:
     facts = _facts(_cik(ticker))
     flows = {k: _flow(facts, c, 330, 400) for k, c in DUR.items()}
     insts = {k: _inst(facts, c) for k, c in INST.items()}
+    
     ends = sorted(flows["NetIncome"])[-n_years:]
     by_year = {int(e[:4]): {**{k: flows[k].get(e) for k in DUR},
                             **{k: insts[k].get(e) for k in INST}} for e in ends}

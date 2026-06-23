@@ -416,7 +416,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
 
         d = ev.detail
         if ev.scope == "single":
-            pa = [f"close {d.get('close')}, daily return {d.get('ret_pct')}%, gap {d.get('gap_pct')}%, volume {d.get('vol_mult')}x normal"]
+            pa = [f"open {d.get('open')}, close {d.get('close')}, daily return {d.get('ret_pct')}%, gap {d.get('gap_pct')}%, volume {d.get('vol_mult')}x normal"]
             if "h_52w" in d:
                 pa.append(f"broke prior high {d['h_52w']:.0f} (new high)")
             if "l_52w" in d:
