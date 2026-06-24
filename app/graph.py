@@ -204,8 +204,7 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     edgar_list  = _find(tools_by_server["edgar"], "fetch_filings_around")
     edgar_qmul  = _find(tools_by_server["edgar"], "fetch_multi_quarters")
     edgar_ymul  = _find(tools_by_server["edgar"], "fetch_multi_years")
-    trends_tool = _find(tools_by_server["trends"], "search_spike")
-    trends_sem = asyncio.Semaphore(1)
+
 
     import os
     backend = os.getenv("LLM_BACKEND", "cloud")
@@ -425,25 +424,6 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         else:
             price_block = (f"sector breadth {d.get('breadth')} {d.get('n_triggered')}/{d.get('n_members')} tickers triggered/tickers: {d.get('triggered_tickers')}")
 
-        sv = None
-        search_block = "search interest: n/a"
-        # if ev.scope == "single":
-        #     try:
-        #         async with trends_sem:
-        #             raw = await asyncio.wait_for(
-        #                 trends_tool.ainvoke({
-        #                     "name": ev.name, "market": ev.market,
-        #                     "event_date": ev.event_date.isoformat(),
-        #                 }),
-        #                 timeout=8,
-        #             )
-        #             sv = _parse_tool_payload(raw)
-        #     except Exception:
-        #         sv = None
-        # search_block = (
-        #     f"search interest {sv['search_mult']}x normal (now {sv['search_now']} vs base {sv['search_base']})"
-        #     if sv and sv.get("found") and sv.get("search_mult") else "search interest: n/a"
-        # )
 
         from collections import defaultdict
         by_label: dict[str, list[FinancialFigure]] = defaultdict(list)
@@ -474,8 +454,6 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
             financial figures:
             {figures_block} -> flow account(Revenue, OI, NI,...) figures reflect the exact time period, NOT the accumulative figure.
 
-            attention:
-            {search_block}
 
             Include:
             1) News digest - summarize and analyze the key news items in detail: what each one reports, the relevant background/context, and its implication for the company.

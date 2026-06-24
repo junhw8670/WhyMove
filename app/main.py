@@ -31,7 +31,6 @@ async def lifespan(app: FastAPI):
             ("market", MCP_DIR / "market_server.py"),
             ("edgar", MCP_DIR / "edgar_server.py"),
             ("news",   MCP_DIR / "news_server.py"),
-            ("trends", MCP_DIR / "trends_server.py"),
             ("dart",   DART_MCP_PATH),
         ]
     

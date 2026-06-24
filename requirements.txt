@@ -20,3 +20,5 @@ lxml
 streamlit
 plotly
 pytrends
+transformers
+torch

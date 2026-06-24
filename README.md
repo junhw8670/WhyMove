@@ -38,10 +38,10 @@ WhyMove/
         graph.py                # LangGraph 커스텀 StateGraph
         signal.py               # 이상탐지, 단일/섹터 분류
         llm_utils.py            # 하이브리드 LLM 스위치
-        models.py               # Pydantic State / Event /Memo
-        search_trends.py        # 검색량 탐지
+        models.py               # Pydantic State / Event / Memo
+        kr_cache.py             # 국내 주식 주가 정보 캐싱
     mcp_servers/
-        market_server.py        # 주가·거래량·수급
+        market_server.py        # 주가·거래량·섹터 정보
         news_server.py          # 뉴스
         edgar_server.py         # 공시·재무
     scripts/
@@ -52,4 +52,28 @@ WhyMove/
     streamlit_app.py            # Streamlit UI (대시보드)
     requirements.txt
     .env
-    
+```
+
+---
+### 동기
+관심 종목이 급등락하면 "왜?"를 찾느라 시간을 쓰고, 안 보던 종목의 급등은 뒤늦게 안다.
+임계치를 넘는 움직임을 빠르게 **탐지**하고 원인까지 **요약**해주면 시간 절약 + 기회 포착에 유용하겠다는 생각에서 시작.
+
+---
+
+### 동작
+1. **신호 탐지** — 전일대비 수익률·갭·거래량을 과거 1년 대비 z-score화, **z>2.5** 초과분을 score 합산 + 52주 고·저가 시 +0.5. score >= 1.0이면 이벤트. 같은 섹터 30% 동반 시 섹터 이벤트.
+2. **원인 추적** — 탐지 종목의 최근 뉴스·최신 공시 자동 수집 -> LLM 프롬프트에 결합.
+3. **AI 메모** — 신호·수치·재무·뉴스를 종합한 분석 메모 생성.
+
+---
+
+### 기술 스택
+LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
+
+### 검증 (백테스트)
+- 신호별 향후 수익률이 시장(baseline) 대비 유의한지 부트스트랩으로 검정.
+ -> 국내 주식은 유의미한 평균 차이 없고 미국 주식은 긍·부정 신호 간 약 1% 정도의 초과수익률 평균 차이를 나타냄. 그러나 95% 신뢰구간에서 통계적으로 유의함을 검증 실패.
+  -> 신호 단독 매매는 부적절.
+ -> 신호 + 뉴스 감성 결합 분석으로 확장.
+  -> **긍정 신호 + 긍정 뉴스의 초과 수익률 평균 > 긍정 신호 + 부정 뉴스의 초과 수익률 평균** 결과 얻음. 20일 기준 수익률 약 3% 차이. 그러나 95% 신뢰구간이 (-0.41 ~ 1.67) & (-2.47 ~ 0.84)로 겹침. 통계적 확신은 얻지 못함. 
