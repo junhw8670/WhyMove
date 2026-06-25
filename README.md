@@ -78,7 +78,7 @@ LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
  -> KR - 유의미한 평균 차이 없음.  
     US - **52주 신고·저가** 지표에서 양방향으로 큰 평균 초과수익률 발생. 검정 결과 95% 신뢰구간에서 통계적으로 유의함을 입증.  
 
-    <img src="results/img/exc_by_signal_US.png" width="530">
+    <img src="results/img/exc_by_signal_US.png" width="700">
 
     <img src="results/img/bootstrap_ci_20d.png" width="370">  <img src="results/img/bootstrap_ci_60d.png" width="370">
     
@@ -91,4 +91,4 @@ LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
 ---
 
 ### 최종 산출물 (예시)
-<img src="results/img/streamlit_sample.png" width="550">  
+<img src="results/img/streamlit_sample.png" width="900">  
