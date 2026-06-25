@@ -19,7 +19,7 @@
     - `news_mcp`
     - `filings_mcp`
 - Backend: `FastAPI`
-- Frontend: `Streamlit` + `Plotly`
+- Frontend: `Streamlit`
 
 ---
 
@@ -47,6 +47,8 @@ WhyMove/
     scripts/
         signal_backtest.py      # 시그널 별 수익률 백테스트
         build_us_sector_map.py  # 미국 주식 섹터 매핑 빌드
+        sentiment_backtest.py   # 시그널 + 뉴스 감성 분석 백테스트
+        make_chart.py           # 시각화 자료 생성
     docs/                       
         devlog/                 # 개발일지
     streamlit_app.py            # Streamlit UI (대시보드)
@@ -72,16 +74,21 @@ WhyMove/
 LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
 
 ### 검증 (백테스트)
-- 신호별 향후 수익률이 시장(baseline) 대비 유의한지 부트스트랩으로 검정.
- -> KR - 유의미한 평균 차이 없음.
-    US - **52주 신고·저가** 지표에서 양방향으로 큰 평균 초과수익률 발생. 검정 결과 95% 신뢰구간에서 통계적으로 유의함을 입증.
+- 신호별 향후 수익률이 시장(baseline) 대비 유의한지 부트스트랩으로 검정.  
+ -> KR - 유의미한 평균 차이 없음.  
+    US - **52주 신고·저가** 지표에서 양방향으로 큰 평균 초과수익률 발생. 검정 결과 95% 신뢰구간에서 통계적으로 유의함을 입증.  
 
-    <img src="docs/img/exc_by_signal_US.png" width="500">
+    <img src="results/img/exc_by_signal_US.png" width="530">
 
-    <img src="docs/img/bootstrap_ci_20d.png" width="360">  <img src="docs/img/bootstrap_ci_60d.png" width="360">
+    <img src="results/img/bootstrap_ci_20d.png" width="370">  <img src="results/img/bootstrap_ci_60d.png" width="370">
     
     나머지 지표들도 긍정 신호는 양의 초과수익률, 부정 신호는 음의 초과수익률 평균을 나타냈으나 신뢰구간이 0을 포함. -> 확신 불가.
 
  -> 신호 + 뉴스 감성 결합 분석으로 확장.(US 단독)
 
  -> **긍정 신호 + 긍정 뉴스 20일 초과 수익률 평균(+1.56%) > 긍정 신호 + 부정 뉴스 20일 초과 수익률 평균(-1.38%)**. 그러나 95% 신뢰구간이 상당부분 겹치는 결과. 통계적 확신은 얻지 못함. 
+
+---
+
+### 최종 산출물 (예시)
+<img src="results/img/streamlit_sample.png" width="550">  
