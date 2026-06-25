@@ -75,7 +75,7 @@ LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
 - 신호별 향후 수익률이 시장(baseline) 대비 유의한지 부트스트랩으로 검정.
  -> KR - 유의미한 평균 차이 없음.
     US - **52주 신고·저가** 지표에서 양방향으로 큰 평균 초과수익률 발생. 검정 결과 95% 신뢰구간에서 통계적으로 유의함을 입증.
-    ![신호별 향후 초과수익](docs/img/exc_by_signal.png)
+    ![신호별 향후 초과수익률](exc_by_signal_US.png)
     ![95% 신뢰구간 20일](docs/img/bootstrap_ci_20d.png)
     ![95% 신뢰구간 60일](docs/img/bootstrap_ci_60d.png)
     
