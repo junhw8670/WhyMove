@@ -75,18 +75,13 @@ LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
 - 신호별 향후 수익률이 시장(baseline) 대비 유의한지 부트스트랩으로 검정.
  -> KR - 유의미한 평균 차이 없음.
     US - **52주 신고·저가** 지표에서 양방향으로 큰 평균 초과수익률 발생. 검정 결과 95% 신뢰구간에서 통계적으로 유의함을 입증.
-<<<<<<< HEAD
+
     <img src="docs/img/exc_by_signal_US.png" width="500">
-=======
-    <img src="exc_by_signal_US.png" width="500">
->>>>>>> 1385a2fb8bb31ed5aff5655df8f869ada6455f56
+
     <img src="docs/img/bootstrap_ci_20d.png" width="360">  <img src="docs/img/bootstrap_ci_60d.png" width="360">
     
     나머지 지표들도 긍정 신호는 양의 초과수익률, 부정 신호는 음의 초과수익률 평균을 나타냈으나 신뢰구간이 0을 포함. -> 확신 불가.
 
  -> 신호 + 뉴스 감성 결합 분석으로 확장.(US 단독)
-<<<<<<< HEAD
 
-=======
->>>>>>> 1385a2fb8bb31ed5aff5655df8f869ada6455f56
  -> **긍정 신호 + 긍정 뉴스 20일 초과 수익률 평균(+1.56%) > 긍정 신호 + 부정 뉴스 20일 초과 수익률 평균(-1.38%)**. 그러나 95% 신뢰구간이 상당부분 겹치는 결과. 통계적 확신은 얻지 못함. 
