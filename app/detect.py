@@ -43,8 +43,8 @@ def detect_events(
     if len(feats) < span:
         return []
 
-    h_52w = df["Close"].cummax().shift(1).reindex(feats.index)
-    l_52w = df["Close"].cummin().shift(1).reindex(feats.index)
+    h_52w = df["Close"].rolling(252, min_periods=60).max().shift(1).reindex(feats.index)
+    l_52w = df["Close"].rolling(252, min_periods=60).min().shift(1).reindex(feats.index)
     start = df["Open"].reindex(feats.index)
     close = df["Close"].reindex(feats.index)
 

@@ -19,11 +19,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.detect import detect_events
+from app.kr_cache import CACHE as KR_CACHE_PATH
+
 
 US_SECTOR_MAP = ROOT / "cache" / "us_sector_map.json"
 DART_INDUSTRY = Path("C:/DartCopilot/cache/industry_codes.json")
 
-DEFAULT_HORIZONS = [1, 5, 20, 60]
+DEFAULT_HORIZONS = [5, 20, 60]
+
+
+_KR_CACHE = None
+def _load_kr_cache():
+    global _KR_CACHE
+    if _KR_CACHE is None:
+        _KR_CACHE = pd.read_parquet(KR_CACHE_PATH)
+    return _KR_CACHE
 
 
 def load_universe(market: str, top_n: int | None) -> list[str]:
@@ -41,13 +51,10 @@ def load_universe(market: str, top_n: int | None) -> list[str]:
 
 def fetch_ohlcv(ticker: str, market: str, start: str, end: str) -> pd.DataFrame:
     if market == "KR":
-        df = stock.get_market_ohlcv_by_date(
-            start.replace("-", ""), end.replace("-", ""), ticker
-        )
-        df = df.rename(columns={
-            "시가": "Open", "고가": "High", "저가": "Low",
-            "종가": "Close", "거래량": "Volume",
-        })[["Open", "High", "Low", "Close", "Volume"]]
+        c = _load_kr_cache()
+        df = c[c["ticker"] == ticker]
+        df = df[(df["date"] >= pd.Timestamp(start)) & (df["date"] <= pd.Timestamp(end))]
+        df = df.set_index("date").sort_index()[["Open", "High", "Low", "Close", "Volume"]]
     else:
         import yfinance as yf
         df = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=False)
@@ -166,8 +173,7 @@ def bootstrap_excess(records, h, signal=None, n_boot=2000, seed=2026):
     return round(per_ticker.mean()*100, 2), round(lo*100, 2), round(hi*100, 2)
 
 
-def run(market, top_n, horizons, history_days=1825, warmup_days=1825,
-        cooldown=0, end=None):
+def run(market, top_n, horizons, history_days=365, warmup_days=365, cooldown=0, end=None):
     end_date = datetime.strptime(end, "%Y-%m-%d").date() if end else datetime.today().date()
     test_start  = end_date - timedelta(days=history_days)
     fetch_start = test_start - timedelta(days=warmup_days)
@@ -195,8 +201,7 @@ def run(market, top_n, horizons, history_days=1825, warmup_days=1825,
             print(f"  [{i}/{len(tickers)}] events_so_far={len(all_records)}")
 
     summary = summarize(all_records, horizons)
-    print(f"\n총 신호 레코드: {len(all_records)}\n")
-    print("=== 신호별 향후 수익률 (mean/exc/win = %; exc=baseline 대비 초과) ===")
+    print(f"\n records: {len(all_records)}\n")
     print(summary.to_string(index=False) if not summary.empty else "(신호 없음)")
     return summary, all_records
  
@@ -204,15 +209,12 @@ def run(market, top_n, horizons, history_days=1825, warmup_days=1825,
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="신호별 향후 수익률 백테스트")
     p.add_argument("--market", choices=["KR", "US"], default="US")
-    p.add_argument("--top-n", type=int, default=100, help="유니버스 앞 N개 (0=전체)")
-    p.add_argument("--horizons", type=int, nargs="+", default=DEFAULT_HORIZONS,
-                   help="향후 수익률 구간(거래일)")
-    p.add_argument("--warmup", type=int, default=1825,
-                   help="평가구간 이전 워밍업 일수")
-    p.add_argument("--cooldown", type=int, default=0,
-                   help="신호별 최소 간격(거래일), 0=끔")
-    p.add_argument("--end", type=str, default=None, help="기준 종료일 YYYY-MM-DD (기본=오늘)")
-    p.add_argument("--save", type=str, default=None, help="결과 CSV 저장 경로")
+    p.add_argument("--top-n", type=int, default=500)
+    p.add_argument("--horizons", type=int, nargs="+", default=DEFAULT_HORIZONS)
+    p.add_argument("--warmup", type=int, default=365)
+    p.add_argument("--cooldown", type=int, default=5)
+    p.add_argument("--end", type=str, default=None)
+    p.add_argument("--save", type=str, default=None)
     args = p.parse_args()
 
     summary, records = run(
@@ -227,6 +229,6 @@ if __name__ == "__main__":
         summary.to_csv(args.save, index=False, encoding="utf-8-sig")
         print(f"\nsaved → {args.save}")
 
-    for sig in ["5_years_high", "price_jump_up", "gap_up", "volume_spike_up"]:
+    for sig in ["52_weeks_high", "price_jump_up", "gap_up", "volume_spike_up", "52_weeks_low", "price_jump_down", "gap_down", "volume_spike_down"]:
         for h in [20, 60]:
             print(sig, h, bootstrap_excess(records, h, signal=sig))

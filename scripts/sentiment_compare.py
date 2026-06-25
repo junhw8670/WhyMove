@@ -68,7 +68,7 @@ def main():
     args = p.parse_args()
 
     _, records = run("US", top_n=args.top_n, horizons=args.horizons,
-                     history_days=465, warmup_days=365, cooldown=args.cooldown)
+                     history_days=365, warmup_days=365, cooldown=args.cooldown)
     print(f"records: {len(records)}")
 
     cache = {}
