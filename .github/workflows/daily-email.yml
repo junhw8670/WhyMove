@@ -29,7 +29,26 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Restore KR market cache
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/kr_ohlcv.parquet
+          key: kr-ohlcv-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            kr-ohlcv-${{ runner.os }}-
 
+      - name: Update KR market cache
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+        run: python -m app.kr_cache
+
+      - name: Save KR market cache
+        uses: actions/cache/save@v4
+        with:
+          path: cache/kr_ohlcv.parquet
+          key: kr-ohlcv-${{ runner.os }}-${{ github.run_id }}
+      
       - name: Generate and send report
         env:
           LLM_BACKEND: cloud
