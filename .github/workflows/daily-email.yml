@@ -46,9 +46,7 @@ jobs:
 
           DART_MCP_PATH: ${{ github.workspace }}/DartCopilot/mcp_servers/dart_server.py
           DART_INDUSTRY_PATH: ${{ github.workspace }}/DartCopilot/cache/industry_codes.json
-          
-          EDGAR_USER_AGENT: WhyMove research junhw8670@gmail.com
 
-        run: python daily_email.py
+          EDGAR_USER_AGENT: WhyMove research junhw8670@gmail.com
 
         run: python daily_email.py
