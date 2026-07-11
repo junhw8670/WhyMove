@@ -24,8 +24,13 @@ def get_report(market: str, report_date: str) -> dict:
                 "kr_market": "ALL",
             },
         )
-        response.raise_for_status()
-        return response.json()
+        if not response.is_success:
+              raise RuntimeError(
+                  f"{market} report failed "
+                  f"(HTTP {response.status_code}): {response.text}"
+              )
+
+        return response.json
 
 
 def build_email_body(report: dict) -> str:
