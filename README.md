@@ -13,11 +13,11 @@
 
 ### 기술 스택
 - Orchestration: `LangGraph` (커스텀 StateGraph - 명시적 노드 + 조건부 엣지)
-- LLM: `ChatOpenAI`(기본)·`ChatOllama`(로컬)
+- LLM: `ChatOpenAI`(cloud)·`ChatOllama`(local)
 - MCP Servers:
     - `market_mcp`
     - `news_mcp`
-    - `filings_mcp`
+    - `edgar_mcp`
 - Backend: `FastAPI`
 - Frontend: `Streamlit`
 
@@ -49,6 +49,10 @@ WhyMove/
         build_us_sector_map.py  # 미국 주식 섹터 매핑 빌드
         sentiment_backtest.py   # 시그널 + 뉴스 감성 분석 백테스트
         make_chart.py           # 시각화 자료 생성
+    cache/
+        kr_ohlcv.parquet        # KR 주가정보 캐싱
+        us_marketcap.json       # US 시가총액 캐싱
+        us_sector_map.json      # US 섹터맵 캐싱
     docs/                       
         devlog/                 # 개발일지
     streamlit_app.py            # Streamlit UI (대시보드)
@@ -57,6 +61,7 @@ WhyMove/
 ```
 
 ---
+
 ### 동기
 관심 종목이 급등락하면 "왜?"를 찾느라 시간을 쓰고, 안 보던 종목의 급등은 뒤늦게 안다.
 임계치를 넘는 움직임을 빠르게 **탐지**하고 원인까지 **요약**해주면 시간 절약 + 기회 포착에 유용하겠다는 생각에서 시작.
@@ -69,9 +74,6 @@ WhyMove/
 3. **AI 메모** — 신호·수치·재무·뉴스를 종합한 분석 메모 생성.
 
 ---
-
-### 기술 스택
-LangGraph · MCP · FastAPI · Streamlit · Ollama/OpenAI
 
 ### 검증 (백테스트)
 - 신호별 향후 수익률이 시장(baseline) 대비 유의한지 부트스트랩으로 검정.  

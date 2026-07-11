@@ -32,8 +32,8 @@ def _fetch_day(d: date) -> list[pd.DataFrame]:
     return frames
 
 
-def update(days: int = 400, upto: Optional[date] = None) -> pd.DataFrame:
-    end = upto or datetime.today().date()
+def update(days: int = 400) -> pd.DataFrame:
+    end = datetime.today().date()
     if CACHE.exists():
         old = pd.read_parquet(CACHE)
         start = old["date"].max().date() + timedelta(days=1)

@@ -136,7 +136,7 @@ async def scan_universe(
         if not CACHE.exists():
             raise RuntimeError("Execute `python -m app.kr_cache`.")
         try:
-            cache = update(upto=end)
+            cache = update()
         except Exception as e:
             logger.warning(f"KR cache update failed, using stale: {e}")
             cache = pd.read_parquet(CACHE)

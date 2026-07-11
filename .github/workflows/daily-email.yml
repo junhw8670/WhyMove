@@ -1,0 +1,53 @@
+name: WhyMove Daily Email
+
+on:
+  schedule:
+    - cron: "30 18 * * 1-5"
+      timezone: "America/New_York"
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout WhyMove
+        uses: actions/checkout@v7
+
+      - name: Checkout DartCopilot
+        uses: actions/checkout@v7
+        with:
+          repository: junhw8670/DartCopilot
+          path: DartCopilot
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create dummy KR industry file
+        run: |
+          mkdir -p cache
+          echo '{}' > cache/empty_industry.json
+
+      - name: Generate and send report
+        env:
+          LLM_BACKEND: cloud
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+
+          EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
+
+          DART_MCP_PATH: ${{ github.workspace }}/DartCopilot/mcp_servers/dart_server.py
+          DART_INDUSTRY_PATH: ${{ github.workspace }}/cache/empty_industry.json
+
+          EDGAR_USER_AGENT: WhyMove research junhw8670@gmail.com
+
+        run: python daily_email.py
