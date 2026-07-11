@@ -1,0 +1,5 @@
+name: Check OpenAI secret
+env:
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+run: |
+  python -c "import os; v=os.getenv('OPENAI_API_KEY'); print('present=', bool(v), 'length=', len(v or ''))"
