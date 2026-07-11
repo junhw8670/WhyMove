@@ -30,24 +30,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Create dummy KR industry file
-        run: |
-          mkdir -p cache
-          echo '{}' > cache/empty_industry.json
-
       - name: Generate and send report
         env:
           LLM_BACKEND: cloud
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          OPENDART_API_KEY: ${{ secrets.OPENDART_API_KEY }}
 
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           EMAIL_RECIPIENTS: ${{ secrets.EMAIL_RECIPIENTS }}
 
           DART_MCP_PATH: ${{ github.workspace }}/DartCopilot/mcp_servers/dart_server.py
-          DART_INDUSTRY_PATH: ${{ github.workspace }}/cache/empty_industry.json
-
+          DART_INDUSTRY_PATH: ${{ github.workspace }}/DartCopilot/cache/industry_codes.json
+          
           EDGAR_USER_AGENT: WhyMove research junhw8670@gmail.com
+
+        run: python daily_email.py
 
         run: python daily_email.py

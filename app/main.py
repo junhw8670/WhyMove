@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     
         tools_by_server: dict[str, list] = {}
         for name, path in servers:
-            params = StdioServerParameters(command=sys.executable, args=[str(path)])
+            params = StdioServerParameters(command=sys.executable, args=[str(path)], env=os.environ.copy())
             read, write = await stack.enter_async_context(stdio_client(params))
             session = await stack.enter_async_context(ClientSession(read, write))
             await session.initialize()

@@ -67,7 +67,7 @@ def build_email_body(report: dict) -> str:
     return "\n".join(lines)
 
 
-def send_email(report: dict) -> None:
+def send_email(body: str, report_date: str) -> None:
     sender = os.environ["EMAIL_SENDER"]
     password = os.environ["EMAIL_APP_PASSWORD"]
 
@@ -81,13 +81,11 @@ def send_email(report: dict) -> None:
         raise RuntimeError("EMAIL_RECIPIENTS가 비어 있습니다.")
 
     message = EmailMessage()
-    message["Subject"] = f"[WhyMove] {report['date']} Daily Report"
+    message["Subject"] = f"[WhyMove] {report_date} Daily Report"
     message["From"] = sender
-
     message["To"] = sender
     message["Bcc"] = ", ".join(recipients)
-
-    message.set_content(build_email_body(report))
+    message.set_content(body)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
         smtp.login(sender, password)
