@@ -35,6 +35,9 @@ jobs:
           LLM_BACKEND: cloud
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
