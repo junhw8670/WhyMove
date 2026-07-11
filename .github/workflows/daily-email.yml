@@ -49,6 +49,6 @@ jobs:
 
           EDGAR_USER_AGENT: WhyMove research junhw8670@gmail.com
 
-  run: |
-    python -c "import os; v=os.getenv('OPENAI_API_KEY'); print('OPENAI_KEY 전달됨:', bool(v), '길이:', len(v or ''))"
-    python daily_email.py
+        run: |
+          python -c "import os; v=os.getenv('OPENAI_API_KEY'); print('OPENAI_KEY 전달됨:', bool(v), '길이:', len(v or ''))"
+          python daily_email.py
