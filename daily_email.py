@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import smtplib
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
 
