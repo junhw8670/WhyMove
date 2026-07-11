@@ -30,7 +30,7 @@ def get_report(market: str, report_date: str) -> dict:
                   f"(HTTP {response.status_code}): {response.text}"
               )
 
-        return response.json
+        return response.json()
 
 
 def build_email_body(report: dict) -> str:
