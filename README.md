@@ -1,25 +1,32 @@
 # WhyMove
-한국·미국 주식의 주가·거래량·수급 변동 이상치를 탐지하고, 그 발생 원인을 뉴스와 공시·재무로 자동 추적해 분석 메모를 제공하여 투자 의사결정에 도움을 주는 멀티 에이전트 모니터링 시스템입니다. 
+거래일마다 한국·미국 주식의 주가·거래량·수급 변동 이상징후를 탐지하고, 관련 뉴스와 공시·재무자료를 자동으로 추적하여 근거가 포함된 AI 분석 메모를 생성하고 이메일로 전송하는 멀티에이전트 시장 모니터링 시스템입니다.
 
 ---
 
 ### 이 프로젝트로 할 수 있는 것
 1. 주목할 만한 변화가 있는 종목/섹터 탐지
-2. 이상치의 원인을 추적하는 뉴스·공시 자동 추적
-3. 뉴스와 공시·재무자료를 대조하여 정보의 품질 분석
-4. 종합 분석 메모 제공
+2. 이상치의 원인을 추적하는 뉴스·공시 자동 수집
+3. 수치와 외부 근거를 종합한 AI 분석 메모 생성
+4. 출처 링크를 통한 분석 결과의 역추적 및 검증
+5. 일정 시각 자동 실행 및 이메일 보고서 전송
 
 ---
 
 ### 기술 스택
 - Orchestration: `LangGraph` (커스텀 StateGraph - 명시적 노드 + 조건부 엣지)
 - LLM: `ChatOpenAI`(cloud)·`ChatOllama`(local)
-- MCP Servers:
-    - `market_mcp`
-    - `news_mcp`
-    - `edgar_mcp`
 - Backend: `FastAPI`
 - Frontend: `Streamlit`
+- MCP:
+    - 시장 데이터 MCP
+    - 뉴스 검색 MCP
+    - SEC EDGAR MCP
+    - OpenDART MCP (`DartCopilot` 연동)
+- Automation:
+    - `GitHub Actions` scheduled workflow
+- Delivery:
+    - Gmail SMTP
+    - Python `EmailMessage`
 
 ---
 
@@ -33,13 +40,16 @@
 ### 프로젝트 구조
 ```
 WhyMove/
+    .github/
+        workflows/
+            daily-email.yml     # 자동 실행 및 이메일 발송
     app/
-        main.py                 # FastAPI 엔트리포인트, 3개 MCP 서버 로드
-        graph.py                # LangGraph 커스텀 StateGraph
-        signal.py               # 이상탐지, 단일/섹터 분류
+        main.py                 # FastAPI 엔트리포인트
+        graph.py                # LangGraph 분석 워크플로
+        detect.py               # 단일/섹터 이상탐지
         llm_utils.py            # 하이브리드 LLM 스위치
         models.py               # Pydantic State / Event / Memo
-        kr_cache.py             # 국내 주식 주가 정보 캐싱
+        kr_cache.py             # 국내 주가 데이터 캐시
     mcp_servers/
         market_server.py        # 주가·거래량·섹터 정보
         news_server.py          # 뉴스
@@ -50,11 +60,12 @@ WhyMove/
         sentiment_backtest.py   # 시그널 + 뉴스 감성 분석 백테스트
         make_chart.py           # 시각화 자료 생성
     cache/
-        kr_ohlcv.parquet        # KR 주가정보 캐싱
-        us_marketcap.json       # US 시가총액 캐싱
-        us_sector_map.json      # US 섹터맵 캐싱
+        kr_ohlcv.parquet        # KR 주가정보
+        us_marketcap.json       # US 시가총액
+        us_sector_map.json      # US 섹터맵
     docs/                       
         devlog/                 # 개발일지
+    daily_email.py              # 분석 실행 및 이메일 보고서 생성
     streamlit_app.py            # Streamlit UI (대시보드)
     requirements.txt
     .env
@@ -103,4 +114,12 @@ WhyMove/
 ---
 
 ### 최종 산출물 (예시)
+
+#### Streamlit 화면
 <img src="results/img/streamlit_sample.png" width="1000">  
+
+#### 수신된 E-mail 화면
+<img src="results/img/email_sam1.png" width="800">
+<img src="results/img/email_sam2.png" width="800">
+<img src="results/img/email_sam3.png" width="950">
+<img src="results/img/email_sam4.png" width="800">
