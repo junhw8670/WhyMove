@@ -27,7 +27,7 @@ class Event(BaseModel):
     event_date: date
     scope: Scope = "single"
     sector: Optional[str] = None
-    signals: list[SignalType] = []
+    signals: list[SignalType] = Field(default_factory=list)
     score: float = 0.0
     detail: dict = Field(default_factory=dict)
 
@@ -38,7 +38,7 @@ class NewsItem(BaseModel):
     url: str = ""
     source: str = ""
     published: Optional[date] = None
-    
+    sources: list[str] = Field(default_factory=list)
 
 class FinancialFigure(BaseModel):
     label: str
@@ -54,11 +54,49 @@ class Memo(BaseModel):
     backend_used: str = "cloud"
 
 
+class OrchestrationPlan(BaseModel):
+    run_news: bool = True
+    run_financial: bool = True
+    reason: str = ""
+    
+
+
+class NewsAnalysis(BaseModel):
+    key_facts: list[str] = Field(default_factory=list)
+    likely_catalysts: list[str] = Field(default_factory=list)
+    timing_assessment: str = ""
+
+    causal_strength: Literal[
+        "none",
+        "weak",
+        "moderate",
+        "strong",
+    ] = "none"
+
+    news_findings: Optional[str] = None
+    sources: list[str] = Field(default_factory=list)
+
+class FinancialAnalysis(BaseModel):
+    filing_form: Optional[str] = None
+    filing_date: Optional[str] = None
+
+    key_figures: list[str] = Field(default_factory=list)
+    notable_changes: list[str] = Field(default_factory=list)
+
+    event_relevance: Literal[
+        "none",
+        "weak",
+        "moderate",
+    ] = "none"
+
+    financial_findings: list[str] = Field(default_factory=list)
+
+
 class GraphState(TypedDict, total=False):
     event: Event
-    news: list[NewsItem]
-    has_news: bool
-    has_filing: bool
+    research_plan: OrchestrationPlan
+    news_analysis: NewsAnalysis
+    financial_analysis: FinancialAnalysis
     figures: list[FinancialFigure]
-    filing_info: str
+    news_sources: list[str]
     memo: Memo
