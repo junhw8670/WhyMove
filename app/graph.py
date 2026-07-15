@@ -645,6 +645,10 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
                 summary=summary,
                 sources=state.get("news_sources", []),
                 backend_used=backend,
+                model_used=os.getenv(
+                    "OLLAMA_MODEL" if backend == "local" else "OPENAI_MODEL",
+                    "",
+                )
             )
         }
 

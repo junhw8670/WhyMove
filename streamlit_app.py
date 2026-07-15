@@ -14,8 +14,10 @@ st.set_page_config(
     layout="wide",
 )
 
+
 st.title("WhyMove")
 st.caption("시장 신호 탐지 → 뉴스·공시 추적 → AI 분석 메모")
+
 
 with st.sidebar:
     st.header("스캔 설정")
@@ -136,3 +138,7 @@ else:
                 if detail:
                     with left.expander("이벤트 detail (z-score 등)"):
                         st.json(detail)
+                
+                backend = memo.get("backend_used", "unknown")
+                model = memo.get("model_used", "unknown")
+                left.caption(f"LLM Backend: {backend} / Model: {model}")

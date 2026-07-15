@@ -51,7 +51,7 @@ class Memo(BaseModel):
     figures: list[FinancialFigure] = Field(default_factory=list)
     summary: str = ""
     sources: list[str] = Field(default_factory=list)
-    backend_used: str = "cloud"
+    backend_used: str = ""
 
 
 class OrchestrationPlan(BaseModel):

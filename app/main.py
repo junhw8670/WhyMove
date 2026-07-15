@@ -92,7 +92,7 @@ async def scan(payload: ScanRequest) -> dict:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"scan failed: {e}")
 
-    sem = asyncio.Semaphore(5)
+    sem = asyncio.Semaphore(1)
 
     async def _build_memo(ev):
         async with sem:
