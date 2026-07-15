@@ -10,14 +10,12 @@ from typing import Optional
 import os
 
 import pandas as pd
-from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
-from langchain.agents import create_agent
-from langchain.agents.structured_output import ToolStrategy
 import logging
 
 from .llm_utils import get_llm
-from .models import Event, FinancialFigure, GraphState, Market, Memo, NewsItem, NewsAnalysis, FinancialAnalysis, OrchestrationPlan
+from .models import Event, FinancialFigure, GraphState, Market, Memo, NewsItem, NewsAnalysis, FinancialAnalysis
 from .detect import detect_events, detect_sector_breadth, rank_and_cap_daily
 
 logger = logging.getLogger(__name__)
@@ -212,31 +210,8 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     backend = os.getenv("LLM_BACKEND", "cloud")
     llm = get_llm(backend)
 
-    news_agent = create_agent(
-        model=llm,
-        tools=[news_tool],
-        response_format=ToolStrategy(NewsAnalysis),
-        system_prompt=
-        """
-        You are a News Analysis Agent that searches and analyzes news articles related to a specific stock event.
-        Given the news_tool, you MUST follow these instructions:
-        1) Search for news articles published right before or during the market event.
-        2) You may call the tool again with a different lookback_days if the initial results are insufficient.
-        3) Do not treat post-event news as the original cause of the event; instead, use it to understand the market's reaction and sentiment.
-        4) Separate confirmed facts from speculation and inference.
-        5) Assess whether the news plausibly explains the direction and magnitude of the price movement.
-        6) Never invent facts, article contents, publication times, or sources.
-        7) Stop when sufficient evidence is found or further searches are unlikely to help.
-        8) If no plausible catalyst is found, state that clearly.
-        9) Considering the time gap between the event and the news, evaluate whether the news could have influenced the market's reaction.
-        10) If the news handles multiple companies, sectors or markets, just use the information for providing context.
-        11) Irrelevent news should be ignored, and you should focus on the most relevant articles.
-        12) Write the final answer in Korean.
-        """,
-        name="news_agent",
-    )
-
-    orchestration_llm = llm.with_structured_output(OrchestrationPlan)
+    news_llm = llm.with_structured_output(NewsAnalysis)
+    financial_llm = llm.with_structured_output(FinancialAnalysis)
 
     KR_ACCOUNT_ALIASES: dict[str, set[str]] = {
         "매출액": {"매출액", "수익(매출액)", "영업수익", "수익"},
@@ -282,20 +257,26 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
                 out[standard] = float(amt)
         return out
 
-    async def fetch_news_node(state: GraphState) -> dict:
+    async def fetch_news_node(state: GraphState, lookback_days: int = 90) -> dict:
         ev = state["event"]
         raw = await news_tool.ainvoke({
             "ticker": ev.ticker, "market": ev.market,
             "event_date": ev.event_date.isoformat(),
-            "lookback_days": 7, "name": ev.name,
+            "lookback_days": lookback_days, "name": ev.name,
         })
         payload = _parse_tool_payload(raw)
         if payload is None:
             raise RuntimeError("news_tool: invalid MCP payload")
-        items = [NewsItem(**it) for it in payload.get("items", [])][:10]
+        items = [NewsItem(**it) for it in payload.get("items", [])]
+        items.sort(
+            key=lambda item: item.published or date.min,
+            reverse=True,
+        )
+
+        items = items[:20]
         return {"news": items, "has_news": bool(items)}
 
-    async def fetch_financial_node(state: GraphState, lookback_days: int = 30) -> dict:
+    async def fetch_financial_node(state: GraphState, lookback_days: int = 90) -> dict:
         ev = state["event"]
         if ev.scope != "single":
             return{"figures": [], "has_filing": False}
@@ -430,68 +411,6 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         return {"figures": [], "has_filing": False}
 
 
-    async def fetch_financial_context(
-        ticker: str,
-        name: str,
-        market: str,
-        event_date: str,
-        lookback_days: int = 30,
-    ) -> dict:
-        event = Event(
-            ticker=ticker,
-            name=name,
-            market=market,
-            event_date=date.fromisoformat(event_date),
-            scope="single",
-            signals=[],
-            score=0,
-            detail={},
-        )
-
-        result = await fetch_financial_node(
-                {"event": event},
-                lookback_days= lookback_days,
-        )
-
-        return {
-            "has_filing": result.get("has_filing", False),
-            "filing_info": result.get("filing_info", ""),
-            "figures": [
-                figure.model_dump()
-                for figure in result.get("figures", [])
-            ],
-        }
-
-    financial_context_tool = StructuredTool.from_function(
-        coroutine=fetch_financial_context,
-        name="fetch_financial_context",
-        description=(
-            "Fetch deterministic filing metadata and normalized financial figures for a Korean or US stock around a market event."
-        ),
-    )
-
-    financial_agent = create_agent(
-        model=llm,
-        tools=[financial_context_tool],
-        response_format=ToolStrategy(FinancialAnalysis),
-        system_prompt=
-        """
-        You are a Financial Analysis Agent that searches and analyzes financial information related to a specific stock event.
-        Given the financial_context_tool, you MUST follow these instructions:
-        1) Search for news articles published right before or during the market event.
-        2) You may call the tool again with a different lookback_days if the initial results are insufficient(for example, 7 -> 30 -> 60 -> 180).
-        3) Use `fetch_financial_context` to obtain filing metadata and normalized financial figures.
-        4) Use only values returned by the tool.
-        5) Identify material changes across periods.
-        6) Considering the distance between the filing date and the market-event date, evaluate whether the filing could have influenced the market's reaction.
-        7) Do not claim that financial results caused the market event.
-        8) State clearly when the available figures are insufficient.
-        9) Write the final answer in Korean.
-        """,
-        name="financial_agent",
-    )
-
-
     def build_event_prompt(event: Event) -> str:
         return f"""
         Analyze the following market event.
@@ -507,115 +426,169 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
         """.strip()
 
 
-    async def orchestrator_node(state: GraphState) -> dict:
+    async def news_analysis_node(state: GraphState) -> dict:
         event = state["event"]
+        fetched = await fetch_news_node(
+            state,
+            lookback_days=90,
+        )
 
-        return {
-            "research_plan": OrchestrationPlan(
-                run_news=True,
-                run_financial=event.scope == "single",
-                reason=(
-                    "Basically, news research is always performed, but financial analysis is only performed for individual company events."
-                ),
-            )
-        }
+        items: list[NewsItem] = fetched["news"]
 
-
-    async def news_agent_node(state: GraphState) -> dict:
-        plan = state["research_plan"]
-
-        if not plan.run_news:
+        if not items:
             return {
                 "news_analysis": NewsAnalysis(
-                    news_findings="오케스트레이터가 뉴스 조사를 생략했습니다."
-                )
+                    key_facts=[],
+                    likely_catalysts=[],
+                    timing_assessment=(
+                        "No news articles were found within the specified lookback period. "
+                    ),
+                    causal_strength="none",
+                    news_findings="Not able to trace the cause by news articles.",
+                    sources=[],
+                ),
+                "news_sources": [],
             }
+        
+        news_payload = [
+            item.model_dump(mode="json")
+            for item in items
+        ]
 
-        result = await news_agent.ainvoke({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": build_event_prompt(state["event"]),
-                }
-            ]
-        })
+        prompt = f"""
+    [Analysis Target]
+    Company: {event.name}
+    Ticker: {event.ticker}
+    Market: {event.market}
+    Event Date: {event.event_date.isoformat()}
+    Detected Signals: {", ".join(event.signals)}
+    Anomaly Score: {event.score}
+    Price/Volume Information:
+    {json.dumps(event.detail, ensure_ascii=False)}
 
-        sources = []
+    [Lookback Period]
+    News articles from the past 90 days relative to the event date.
 
-        for message in result["messages"]:
-            payload = _parse_tool_payload(message.content)
+    [News Data]
+    {json.dumps(news_payload, ensure_ascii=False, indent=2)}
+    
+    Given the news data, analyze it whether it can explain the market-event. Follow these instructions:
+    1) If multiple news articles are available, focus on the most recent and relevant ones that could plausibly explain the market event.
+    2) Do not treat post-event news as the original cause of the event; instead, use it to understand the market's reaction and sentiment.
+    3) Separate confirmed facts from speculation and inference.
+    4) Assess whether the news plausibly explains the direction and magnitude of the price movement.
+    5) Never invent facts, article contents, publication times, or sources.
+    6) If no plausible catalyst is found, state that clearly.
+    7) Considering the time gap between the event and the news, evaluate whether the news could have influenced the market's reaction.
+    8) If the news handles multiple companies, sectors or markets, just use the information for providing context.
+    9) Irrelevent news should be ignored, and you should focus on the most relevant articles.
+    10) Write the final answer in Korean.
+    """.strip()
 
-            if not payload:
-                continue
-            
-            for item in payload.get("items", []):
-                url = item.get("url")
-                if url and url not in sources:
-                    sources.append(url)
+        analysis = await news_llm.ainvoke(prompt)
+
+        sources = list(dict.fromkeys(
+            item.url
+            for item in items
+            if item.url
+        ))
 
         return {
-            "news_analysis": result["structured_response"],
-            "news_sources": sources,    
+            "news_analysis": analysis,
+            "news_sources": sources,
         }
 
-    async def financial_agent_node(state: GraphState) -> dict:
-        plan = state["research_plan"]
 
-        if not plan.run_financial:
+    async def financial_analysis_node(state: GraphState) -> dict:
+        event = state["event"]
+
+        
+        if event.scope != "single":
             return {
                 "financial_analysis": FinancialAnalysis(
+                    key_figures=[],
+                    notable_changes=[],
+                    event_relevance="none",
                     financial_findings=[
-                        "섹터 이벤트이거나 오케스트레이터가 재무 조사를 생략했습니다."
-                    ]
+                        "No financial data available for sector-level events."
+                    ],
                 ),
                 "figures": [],
             }
 
-        result = await financial_agent.ainvoke({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": build_event_prompt(state["event"]),
-                }
-            ]
-        })
+        fetched = await fetch_financial_node(
+            state,
+            lookback_days=90,
+        )
 
-        figures = []
+        figures: list[FinancialFigure] = fetched.get("figures", [])
+        filing_info = fetched.get("filing_info", "")
+        has_filing = fetched.get("has_filing", False)
 
-        for message in result["messages"]:
-            payload = _parse_tool_payload(message.content)
+        if not has_filing or not figures:
+            return {
+                "financial_analysis": FinancialAnalysis(
+                    key_figures=[],
+                    notable_changes=[],
+                    event_relevance="none",
+                    financial_findings=[
+                        "No financial data available for this event within the specified timeframe."
+                    ],
+                ),
+                "figures": [],
+            }
 
-            if not payload:
-                continue
-            
-            tool_figures = payload.get("figures", [])
+        figure_payload = [
+            figure.model_dump(mode="json")
+            for figure in figures
+        ]
 
-            if tool_figures:
-                figures = [
-                    FinancialFigure(**fig)
-                    for fig in tool_figures
-                ]
+        prompt = f"""
+    [Analysis Target]
+    Company: {event.name}
+    Ticker: {event.ticker}
+    Market: {event.market}
+    Event Date: {event.event_date.isoformat()}
+    Detection Signals: {", ".join(event.signals)}
+    Anomaly Score: {event.score}
+
+    [lookback period]
+    90 days prior to the event date.
+
+    [selected disclosures]
+    {filing_info}
+
+    [financial figures]
+    {json.dumps(figure_payload, ensure_ascii=False, indent=2)}
+
+
+    Given the financial information, analyze it whether it can explain the market-event. You MUST follow these instructions:
+    1) If the multiple disclosures are available, focus on the comparison between the last two.
+    2) Identify material changes across periods.
+    3) Considering the distance between the filing date and the market-event date, evaluate whether the filing could have influenced the market's reaction.
+    4) Do not claim that financial results caused the market event.
+    5) State clearly when the available figures are insufficient.
+    6) Write the final answer in Korean.
+    """.strip()
+
+        analysis = await financial_llm.ainvoke(prompt)
 
         return {
-            "financial_analysis": result["structured_response"],
+            "financial_analysis": analysis,
             "figures": figures,
         }
 
 
     async def compose_memo_node(state: GraphState) -> dict:
         event = state["event"]
-        plan = state["research_plan"]
         news = state["news_analysis"]
         financial = state["financial_analysis"]
 
         prompt = f"""
-    Compose a Korean market-event memo based on the following agents' findings.
+    Given the following information, compose a concise memo summarizing the market event, its potential causes, and any relevant financial context.
     
     Event:
     {build_event_prompt(event)}
-
-    Orchestration Plan:
-    {plan.model_dump_json(indent=2)}
 
     News Agent results:
     {news.model_dump_json(indent=2)}
@@ -623,12 +596,13 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
     Financial Agent results:
     {financial.model_dump_json(indent=2)}
 
-    작성 규칙:
-    1. Distinguish between confirmed facts and speculation. Clearly indicate which statements are based on evidence and which are inferences or opinions.
-    2. DO NOT invent any facts by fusing multiple news articles or financial reports. Only use the information provided by the agents.
-    3. Clarify the time order of news and financial information in explaining the market event.
-    4. Evaluate whether the price movements are sufficiently explained.
-    5. If evidence is insufficient, clearly state "cause unclear".
+    Follow these instructions when composing the memo:
+    1) Distinguish between confirmed facts and speculation. Clearly indicate which statements are based on evidence and which are inferences or opinions.
+    2) DO NOT invent any facts by fusing multiple news articles or financial reports. Only use the provided information.
+    3) Consider the timing of news articles and financial filings relative to the market event when assessing causality.
+    4) Evaluate whether the price movements are sufficiently explained.
+    5) If evidence is insufficient, clearly state "cause unclear".
+    6) Write the final memo in Korean.
     """
 
         result = await llm.ainvoke(prompt)
@@ -655,21 +629,13 @@ def build_event_graph(tools_by_server: dict[str, list[BaseTool]]):
 
     g = StateGraph(GraphState)
 
-    g.add_node("orchestrator", orchestrator_node)
-    g.add_node("news_agent", news_agent_node)
-    g.add_node("financial_agent", financial_agent_node)
+    g.add_node("news_analysis", news_analysis_node)
+    g.add_node("financial_analysis", financial_analysis_node)
     g.add_node("compose_memo", compose_memo_node)
 
-    g.add_edge(START, "orchestrator")
-
-    g.add_edge("orchestrator", "news_agent")
-    g.add_edge("orchestrator", "financial_agent")
-
-    g.add_edge(
-        ["news_agent", "financial_agent"],
-        "compose_memo",
-    )
-
+    g.add_edge(START, "news_analysis")
+    g.add_edge("news_analysis", "financial_analysis")
+    g.add_edge("financial_analysis", "compose_memo")
     g.add_edge("compose_memo", END)
 
     return g.compile()

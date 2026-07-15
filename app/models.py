@@ -54,13 +54,6 @@ class Memo(BaseModel):
     backend_used: str = ""
 
 
-class OrchestrationPlan(BaseModel):
-    run_news: bool = True
-    run_financial: bool = True
-    reason: str = ""
-    
-
-
 class NewsAnalysis(BaseModel):
     key_facts: list[str] = Field(default_factory=list)
     likely_catalysts: list[str] = Field(default_factory=list)
@@ -94,7 +87,10 @@ class FinancialAnalysis(BaseModel):
 
 class GraphState(TypedDict, total=False):
     event: Event
-    research_plan: OrchestrationPlan
+    news: list[NewsItem]
+    has_news: bool
+    has_filing: bool
+    filing_info: str
     news_analysis: NewsAnalysis
     financial_analysis: FinancialAnalysis
     figures: list[FinancialFigure]
