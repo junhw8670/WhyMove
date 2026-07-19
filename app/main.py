@@ -24,6 +24,17 @@ if not _p:
     raise RuntimeError("DART_MCP_PATH를 .env에 설정하세요")
 DART_MCP_PATH = Path(_p)
 
+
+def load_watchlist(market: str) -> list[str]:
+    raw = os.getenv(f"WATCHLIST_{market}", "")
+
+    return [
+        ticker.strip().upper()
+        for ticker in raw.split(",")
+        if ticker.strip()
+    ]
+
+    
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with AsyncExitStack() as stack:
@@ -87,7 +98,8 @@ async def scan(payload: ScanRequest) -> dict:
             market=payload.market,
             date=payload.date,
             top_n=payload.top_n,
-            kr_market=payload.kr_market or "ALL"
+            kr_market=payload.kr_market or "ALL",
+            watchlist=load_watchlist(payload.market),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"scan failed: {e}")

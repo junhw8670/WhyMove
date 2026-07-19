@@ -118,7 +118,9 @@ async def scan_universe(
     top_n: Optional[int] = None,
     history_days: int = 370,
     kr_market: str = "ALL",
+    watchlist = None
 ) -> list[Event]:
+    watchlist = set(watchlist or [])
     get_sm = _find(tools["market"], "get_sector_map")
     raw = await get_sm.ainvoke({"market": market})
     payload = _parse_tool_payload(raw)
@@ -153,6 +155,8 @@ async def scan_universe(
         except Exception as e:
             logger.warning(f"market cap fetch failed: {e}")
             tickers = list(live)[:top_n] if top_n else list(live)
+        
+        tickers = list(dict.fromkeys(tickers + [ticker for ticker in watchlist if ticker in live]))
 
         for t, g in cache[cache["ticker"].isin(tickers)].groupby("ticker"):
             df = g[g["date"] >= st].set_index("date").sort_index()[["Open", "High", "Low", "Close", "Volume"]]
@@ -169,7 +173,7 @@ async def scan_universe(
                 tickers = sorted((t for t in tickers if t in caps), key=lambda t: caps[t], reverse=True)[:top_n]
             else:
                 tickers = tickers[:top_n]
-
+        tickers = list(dict.fromkeys(tickers + list(watchlist)))
         sem = asyncio.Semaphore(8)
 
         async def grab(ticker: str) -> None:
@@ -191,8 +195,35 @@ async def scan_universe(
         
     singles = [ev for t, df in frames for ev in detect_events(df, t, market, last_only=True)]
     sectors = detect_sector_breadth(singles, sm, market, universe=[t for t, _ in frames])
+    watchlist_events = [
+        event
+        for event in singles
+        if event.ticker in watchlist
+    ]
+
+    regular_events = [
+        event
+        for event in singles
+        if event.ticker not in watchlist
+    ]
+
+    selected_singles = (
+        rank_and_cap_daily(
+            regular_events,
+            max_per_day=10,
+        )
+        + watchlist_events
+    )
+
+    selected_singles.sort(
+        key=lambda event: (
+            event.event_date,
+            -event.score,
+        )
+    )
+
     return (
-        rank_and_cap_daily(singles, max_per_day=10)
+        selected_singles
         + rank_and_cap_daily(sectors, max_per_day=3)
     )
     

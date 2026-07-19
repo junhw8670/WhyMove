@@ -100,15 +100,15 @@ def send_email(body: str, report_date: str) -> None:
 def main() -> None:
     report_date = (datetime.now(ZoneInfo("Asia/Seoul")).date() - timedelta(days=1)).isoformat()
 
-    kr_report = get_report("KR", report_date)
+    # kr_report = get_report("KR", report_date)
     us_report = get_report("US", report_date)
 
     email_body = (
-        build_email_body(kr_report)
-        + "\n\n"
-        + "=" * 80
-        + "\n\n"
-        + build_email_body(us_report)
+        build_email_body(us_report)
+        # + "\n\n"
+        # + "=" * 80
+        # + "\n\n"
+        # + build_email_body(kr_report)
     )
 
     send_email(

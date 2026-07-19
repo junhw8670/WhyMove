@@ -54,6 +54,9 @@ jobs:
           LLM_BACKEND: cloud
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+          WATCHLIST_KR: ${{ vars.WATCHLIST_KR }}
+          WATCHLIST_US: ${{ vars.WATCHLIST_US }}
+          
           KRX_ID: ${{ secrets.KRX_ID }}
           KRX_PW: ${{ secrets.KRX_PW }}
           

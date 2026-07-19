@@ -34,7 +34,7 @@ def detect_events(
     market: Market,
     name: str = "",
     span: int = 60,
-    z_floor: float = 2.5,
+    z_floor: float = 1.5,
     w_52w: float = 0.5,
     score_cutoff: float = 1.0,
     last_only: bool = False
