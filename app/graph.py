@@ -192,8 +192,38 @@ async def scan_universe(
                     logger.warning(f"grab({ticker}): {e}")
 
         await asyncio.gather(*[grab(t) for t in tickers])
-        
-    singles = [ev for t, df in frames for ev in detect_events(df, t, market, last_only=True)]
+    
+    regular_events: list[Event] = []
+    watchlist_events: list[Event] = []
+
+    watchlist_set = {ticker.upper() for ticker in watchlist}
+
+    for ticker, df in frames:
+        is_watchlist = ticker.upper() in watchlist_set
+
+        if is_watchlist:
+            events = detect_events(
+                df=df,
+                ticker=ticker,
+                market=market,
+                z_floor=1.5,
+                score_cutoff=1.0,
+                last_only=True,
+            )
+            watchlist_events.extend(events)
+
+        else:
+            events = detect_events(
+                df=df,
+                ticker=ticker,
+                market=market,
+                z_floor=2.5,
+                score_cutoff=1.0,
+                last_only=True,
+            )
+            regular_events.extend(events)
+
+    singles = regular_events + watchlist_events
     sectors = detect_sector_breadth(singles, sm, market, universe=[t for t, _ in frames])
     watchlist_events = [
         event
