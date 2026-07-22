@@ -147,7 +147,7 @@ WhyMove/
 
 2) cloud 모델 사용  
 
-<<img src="results/img/cloud.png" width="1000">
+<img src="results/img/cloud.png" width="1000">
 
 > 위의 Local 결과는 뉴스·재무지표 노드의 출력을 메모 노드로 전달한 뒤, 최종 단계에서만 LLM을 사용해 분석 메모를 생성한 결과이다. 반면 Cloud 결과는 뉴스 분석과 재무지표 분석 단계에도 각각 LLM을 적용하고, 메모 노드에서 이를 종합했다. Local 환경에서는 Ollama의 Qwen2.5:32B를 사용했으나, 제한된 자원에서 동일한 다단계 분석 구조를 안정적으로 실행하기 어려웠다. 더 작은 모델은 추론 품질 저하가 커 Local 버전은 단일 LLM 호출 구조로 구성했다.
 
