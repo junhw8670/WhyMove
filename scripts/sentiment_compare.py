@@ -19,7 +19,7 @@ FINN = os.getenv("FINNHUB_API_KEY")
 
 from transformers import pipeline
 
-fin = pipeline("sentiment-analysis", model="ProsusAI/finbert")
+_fin = pipeline("sentiment-analysis", model="ProsusAI/finbert")
 
 
 def finbert_score(text: str) -> float:
@@ -65,6 +65,7 @@ def main():
     p.add_argument("--horizons", type=int, nargs="+", default=[5, 20, 60])
     p.add_argument("--thr", type=float, default=0.15)
     p.add_argument("--cooldown", type=int, default=5)
+    p.add_argument("--output", type=Path, default=ROOT / "results" / "data" / "sentiment_compare.txt")
     args = p.parse_args()
 
     _, records = run("US", top_n=args.top_n, horizons=args.horizons,
@@ -97,9 +98,25 @@ def main():
     print(f"combined records: {len(combined)}")
     print(summarize(combined, args.horizons).to_string(index=False))
 
+    output_lines = [
+            f"records: {len(records)}",
+            f"have sent: {len(have)}/{len(records)}, samp: {[round(x, 3) for x in have[:10]]}",
+            f"combined records: {len(combined)}",
+            summarize(combined, args.horizons).to_string(index=False),
+        ]
+
     for cell in ["bull+pos", "bull+neg", "bear+pos", "bear+neg"]:
         for h in args.horizons:
-            print(cell, h, bootstrap_excess(combined, h, signal=cell))
+            output_lines.append(
+                f"{cell} {h} {bootstrap_excess(combined, h, signal=cell)}"
+            )
+
+    output = "\n".join(output_lines)
+    print(output)
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(output + "\n", encoding="utf-8")
+    print(f"saved: {args.output}")
 
     
 if __name__ == "__main__":

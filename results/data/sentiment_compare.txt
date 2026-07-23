@@ -1,0 +1,20 @@
+records: 4920
+have sent: 4752/4920, samp: [0.007, 0.007, 0.007, 0.007, -0.073, -0.073, -0.309, 0.323, 0.323, 0.323]
+combined records: 3011
+  signal    n  mean_5  exc_5  win_5  mean_20  exc_20  win_20  mean_60  exc_60  win_60
+bull+pos 1195    1.03   0.59   51.5     2.36    1.58    48.0     5.11    1.60    44.6
+bear+neg 1111    0.37   0.13   51.9     0.87   -0.33    49.9     2.44   -2.52    38.8
+bear+pos  362    0.57   0.51   55.0     1.53    0.54    50.0     1.85   -2.86    39.8
+bull+neg  343    0.00  -0.74   45.5     0.14   -0.86    40.3     5.36    0.23    46.3
+bull+pos 5 (np.float64(0.31), np.float64(-0.26), np.float64(0.91))
+bull+pos 20 (np.float64(0.64), np.float64(-0.4), np.float64(1.67))
+bull+pos 60 (np.float64(-0.41), np.float64(-2.4), np.float64(1.73))
+bull+neg 5 (np.float64(-0.59), np.float64(-1.52), np.float64(0.31))
+bull+neg 20 (np.float64(-0.55), np.float64(-2.17), np.float64(1.18))
+bull+neg 60 (np.float64(0.04), np.float64(-3.4), np.float64(3.63))
+bear+pos 5 (np.float64(0.73), np.float64(0.04), np.float64(1.42))
+bear+pos 20 (np.float64(0.68), np.float64(-0.52), np.float64(1.96))
+bear+pos 60 (np.float64(-1.36), np.float64(-4.92), np.float64(3.21))
+bear+neg 5 (np.float64(0.16), np.float64(-0.34), np.float64(0.69))
+bear+neg 20 (np.float64(0.16), np.float64(-0.86), np.float64(1.21))
+bear+neg 60 (np.float64(-1.43), np.float64(-3.41), np.float64(0.59))
