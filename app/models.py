@@ -35,6 +35,8 @@ class Event(BaseModel):
 class NewsItem(BaseModel):
     title: str
     summary: str = ""
+    content: str = ""
+    llm_text: str = ""
     url: str = ""
     source: str = ""
     published: Optional[date] = None

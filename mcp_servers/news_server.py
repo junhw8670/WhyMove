@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import trafilatura
 import requests
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -34,6 +35,29 @@ def _domain(url: str) -> str:
 def _kr_name(ticker: str) -> str:
     from pykrx import stock
     return stock.get_market_ticker_name(ticker) or ticker
+
+
+def _us_names(ticker: str) -> list[str]:
+    import re
+    import yfinance as yf
+
+    info = yf.Ticker(ticker).info
+
+    long_name = (
+        info.get("longName")
+        or info.get("shortName")
+        or ticker
+    )
+
+    short_name = re.sub(
+        r"\s+(Inc\.?|Corp\.?|Corporation|Ltd\.?|Limited|PLC)$",
+        "",
+        long_name,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    return list(dict.fromkeys([long_name, short_name]))
+
 
 def _fetch_naver(query: str, n: int = 100) -> list[dict]:
     if not (NAVER_ID and NAVER_SECRET):
@@ -96,9 +120,89 @@ def _fetch_finnhub(symbol: str, frm: str, to: str) -> list[dict]:
     return out
 
 
+def _is_relevant(item: dict, keywords: list[str]) -> bool:
+    title = item.get("title", "").lower()
+    summary = item.get("summary", "").lower()
+
+    return any(
+        keyword.lower() in title
+        and keyword.lower() in summary
+        for keyword in keywords
+        if keyword
+    )
+
+
+def _fetch_article_text(url: str, max_chars: int = 5000) -> str:
+    if not url:
+        return ""
+
+    response = requests.get(
+        url,
+        timeout=15,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "Chrome/124.0 Safari/537.36"
+            )
+        },
+    )
+    response.raise_for_status()
+
+    text = trafilatura.extract(
+        response.content,
+        include_comments=False,
+        include_tables=False,
+        favor_precision=True,
+    )
+
+    if not text:
+        return ""
+
+    return text.strip()[:max_chars]
+
+
+def _filter_and_enrich(
+    items: list[dict],
+    keywords: list[str],
+    limit: int = 10,
+) -> list[dict]:
+    relevant = [
+        item for item in items
+        if _is_relevant(item, keywords)
+    ]
+
+    result = []
+
+    for item in relevant:
+        item = item.copy()
+
+        try:
+            content = _fetch_article_text(
+                item.get("url", "")
+            )
+        except Exception:
+            content = ""
+
+        summary = item.get("summary", "").strip()
+        item["content"] = content
+
+        if len(content.strip()) <= 250:
+            continue
+        
+        item["llm_text"] = content
+
+        result.append(item)
+
+        if len(result) >= limit:
+            break
+
+    return result
+
+
 @mcp.tool()
 def fetch_news(
-    ticker: str, market: str, event_date: str, lookback_days: int = 7, name: Optional[str] = None,
+    ticker: str, market: str, event_date: str, lookback_days: int = 7, name: Optional[str] = None, limit: int = 10
 ) -> dict:
     """Fetch news within lookback_days to event_date.
 
@@ -114,8 +218,8 @@ def fetch_news(
             "ticker": "...",
             "market": "KR" | "US",
             "items": [
-                {"title": "...", "summary": "...", "url": "...",
-                 "source": "...", "published": "YYYY-MM-DD"},
+                {"title": "...", "summary": "...", "content": "...", "llm_text": "...", 
+                "url": "...", "source": "...", "published": "YYYY-MM-DD"},
                 ...
             ]
         }
@@ -126,16 +230,31 @@ def fetch_news(
 
     if market == "KR":
         query = name or _kr_name(ticker)
-        items = [
-            it for it in _fetch_naver(query)
+        candidates = [
+            it for it in _fetch_naver(query, n=100)
             if bgn <= it["published"] <= end
         ]
+
+        keywords = [query]
+
     elif market == "US":
-        items = _fetch_finnhub(symbol=ticker, frm=bgn, to=end)
+        candidates = _fetch_finnhub(
+            symbol=ticker,
+            frm=bgn,
+            to=end,
+        )
+
+        keywords = [name] if name else _us_names(ticker)
     else:
         raise ValueError(f"Unknown market: {market!r}")
 
-    return {"ticker": ticker, "market": market, "items": items}
+    items = _filter_and_enrich(
+        candidates,
+        keywords=keywords,
+        limit=limit,
+    )
+
+    return {"ticker": ticker, "market": market, "keywords": keywords, "candidate_count": len(candidates), "filtered_count": len(items), "items": items}
 
 
 if __name__ == "__main__":
