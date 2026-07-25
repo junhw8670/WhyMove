@@ -25,7 +25,7 @@ MATERIAL_FORMS = {
 }
 
 DUR = {
-    "Revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"],
+    "Revenue": ["RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax", "Revenues", "SalesRevenueNet", "OperatingRevenues"],
     "OperatingIncome": ["OperatingIncomeLoss"],
     "NetIncome": ["NetIncomeLoss"],
 }
@@ -39,8 +39,6 @@ INST = {
 _ticker_to_cik: dict[str, str] | None = None
 
 
-
-
 def _req(url: str) -> requests.Response:
     r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
     r.raise_for_status()
@@ -52,15 +50,32 @@ def _facts(cik: str) -> dict:
 
 
 def _flow(facts, concepts, lo, hi):
-    for c in concepts:
-        out = {}
-        for it in facts.get(c, {}).get("units", {}).get("USD", []):
-            s, e, v = it.get("start"), it.get("end"), it.get("val")
-            if s and e and v is not None and lo <= (date.fromisoformat(e) - date.fromisoformat(s)).days <= hi:
-                out[e] = v
-        if out:
-            return out
-    return {}
+    out = {}
+
+    for concept in concepts:
+        items = (
+            facts.get(concept, {})
+            .get("units", {})
+            .get("USD", [])
+        )
+
+        for item in items:
+            start = item.get("start")
+            end = item.get("end")
+            value = item.get("val")
+
+            if not start or not end or value is None:
+                continue
+
+            duration = (
+                date.fromisoformat(end)
+                - date.fromisoformat(start)
+            ).days
+
+            if lo <= duration <= hi and end not in out:
+                out[end] = value
+
+    return out
 
 
 def _inst(facts, concepts):
@@ -83,6 +98,32 @@ def _cik(ticker: str) -> str:
     if cik is None:
         raise ValueError(f"US ticker not in EDGAR index: {ticker}")
     return cik
+
+
+def _quarter_flow(facts, concepts):
+    quarters = _flow(facts, concepts, 60, 100)
+    nine_months = _flow(facts, concepts, 250, 300)
+    annuals = _flow(facts, concepts, 330, 400)
+
+    for annual_end, annual_value in annuals.items():
+        candidates = [
+            end for end in nine_months
+            if 60 <= (
+                date.fromisoformat(annual_end)
+                - date.fromisoformat(end)
+            ).days <= 110
+        ]
+
+        if candidates:
+            nine_month_end = max(candidates)
+
+            quarters.setdefault(
+                annual_end,
+                annual_value - nine_months[nine_month_end],
+            )
+
+    return quarters
+
 
 @mcp.tool()
 def fetch_filings_around(ticker: str, event_date: str, lookback_days: int = 7) -> dict:
@@ -132,7 +173,7 @@ def fetch_filings_around(ticker: str, event_date: str, lookback_days: int = 7) -
 def fetch_multi_quarters(ticker: str, n_quarters: int = 5) -> dict:
     """as-reported GAAP quarter figures (EDGAR XBRL)."""
     facts = _facts(_cik(ticker))
-    flows = {k: _flow(facts, c, 60, 100) for k, c in DUR.items()}
+    flows = {k: _quarter_flow(facts, c) for k, c in DUR.items()}
     insts = {k: _inst(facts, c) for k, c in INST.items()}
 
     ends = sorted(flows["NetIncome"])[-n_quarters:]

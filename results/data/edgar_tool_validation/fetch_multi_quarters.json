@@ -1,0 +1,176 @@
+[
+  {
+    "input": {
+      "ticker": "AAPL",
+      "n_quarters": 5
+    },
+    "result": {
+      "ticker": "AAPL",
+      "periods": [
+        "2025-03-29",
+        "2025-06-28",
+        "2025-09-27",
+        "2025-12-27",
+        "2026-03-28"
+      ],
+      "by_period": {
+        "2025-03-29": {
+          "Revenue": 95359000000,
+          "OperatingIncome": 29589000000,
+          "NetIncome": 24780000000,
+          "TotalAssets": 331233000000,
+          "TotalLiabilities": 264437000000,
+          "TotalEquity": 66796000000
+        },
+        "2025-06-28": {
+          "Revenue": 94036000000,
+          "OperatingIncome": 28202000000,
+          "NetIncome": 23434000000,
+          "TotalAssets": 331495000000,
+          "TotalLiabilities": 265665000000,
+          "TotalEquity": 65830000000
+        },
+        "2025-09-27": {
+          "Revenue": 102466000000,
+          "OperatingIncome": 32427000000,
+          "NetIncome": 27466000000,
+          "TotalAssets": 359241000000,
+          "TotalLiabilities": 285508000000,
+          "TotalEquity": 73733000000
+        },
+        "2025-12-27": {
+          "Revenue": 143756000000,
+          "OperatingIncome": 50852000000,
+          "NetIncome": 42097000000,
+          "TotalAssets": 379297000000,
+          "TotalLiabilities": 291107000000,
+          "TotalEquity": 88190000000
+        },
+        "2026-03-28": {
+          "Revenue": 111184000000,
+          "OperatingIncome": 35885000000,
+          "NetIncome": 29578000000,
+          "TotalAssets": 371082000000,
+          "TotalLiabilities": 264591000000,
+          "TotalEquity": 106491000000
+        }
+      }
+    }
+  },
+  {
+    "input": {
+      "ticker": "MSFT",
+      "n_quarters": 5
+    },
+    "result": {
+      "ticker": "MSFT",
+      "periods": [
+        "2025-03-31",
+        "2025-06-30",
+        "2025-09-30",
+        "2025-12-31",
+        "2026-03-31"
+      ],
+      "by_period": {
+        "2025-03-31": {
+          "Revenue": 70066000000,
+          "OperatingIncome": 32000000000,
+          "NetIncome": 25824000000,
+          "TotalAssets": 562624000000,
+          "TotalLiabilities": 240733000000,
+          "TotalEquity": 321891000000
+        },
+        "2025-06-30": {
+          "Revenue": 76441000000,
+          "OperatingIncome": 34323000000,
+          "NetIncome": 27233000000,
+          "TotalAssets": 619003000000,
+          "TotalLiabilities": 275524000000,
+          "TotalEquity": 343479000000
+        },
+        "2025-09-30": {
+          "Revenue": 77673000000,
+          "OperatingIncome": 37961000000,
+          "NetIncome": 27747000000,
+          "TotalAssets": 636351000000,
+          "TotalLiabilities": 273275000000,
+          "TotalEquity": 363076000000
+        },
+        "2025-12-31": {
+          "Revenue": 81273000000,
+          "OperatingIncome": 38275000000,
+          "NetIncome": 38458000000,
+          "TotalAssets": 665302000000,
+          "TotalLiabilities": 274427000000,
+          "TotalEquity": 390875000000
+        },
+        "2026-03-31": {
+          "Revenue": 82886000000,
+          "OperatingIncome": 38398000000,
+          "NetIncome": 31778000000,
+          "TotalAssets": 694228000000,
+          "TotalLiabilities": 279861000000,
+          "TotalEquity": 414367000000
+        }
+      }
+    }
+  },
+  {
+    "input": {
+      "ticker": "NVDA",
+      "n_quarters": 5
+    },
+    "result": {
+      "ticker": "NVDA",
+      "periods": [
+        "2025-04-27",
+        "2025-07-27",
+        "2025-10-26",
+        "2026-01-25",
+        "2026-04-26"
+      ],
+      "by_period": {
+        "2025-04-27": {
+          "Revenue": 44062000000,
+          "OperatingIncome": 21638000000,
+          "NetIncome": 18775000000,
+          "TotalAssets": 125254000000,
+          "TotalLiabilities": 41411000000,
+          "TotalEquity": 83843000000
+        },
+        "2025-07-27": {
+          "Revenue": 46743000000,
+          "OperatingIncome": 28440000000,
+          "NetIncome": 26422000000,
+          "TotalAssets": 140740000000,
+          "TotalLiabilities": 40609000000,
+          "TotalEquity": 100131000000
+        },
+        "2025-10-26": {
+          "Revenue": 57006000000,
+          "OperatingIncome": 36010000000,
+          "NetIncome": 31910000000,
+          "TotalAssets": 161148000000,
+          "TotalLiabilities": 42251000000,
+          "TotalEquity": 118897000000
+        },
+        "2026-01-25": {
+          "Revenue": 68127000000,
+          "OperatingIncome": 44299000000,
+          "NetIncome": 42960000000,
+          "TotalAssets": 206803000000,
+          "TotalLiabilities": 49510000000,
+          "TotalEquity": 157293000000
+        },
+        "2026-04-26": {
+          "Revenue": 81615000000,
+          "OperatingIncome": 53536000000,
+          "NetIncome": 58321000000,
+          "TotalAssets": 259474000000,
+          "TotalLiabilities": 64000000000,
+          "TotalEquity": 195474000000
+        }
+      }
+    }
+  }
+]

@@ -13,7 +13,7 @@
 ---
 
 ### 기술 스택
-- Orchestration: `LangGraph` (커스텀 StateGraph - 명시적 노드 + 조건부 엣지)
+- Orchestration: `LangGraph` (StateGraph 기반 워크플로)
 - LLM: `ChatOpenAI`(cloud)·`ChatOllama`(local)
 - Backend: `FastAPI`
 - Frontend: `Streamlit`
@@ -32,7 +32,7 @@
 
 ### 데이터 소스
 - 시세·거래량: `pykrx`, `yfinance`
-- 뉴스: 네이버 검색 API, Finnhub
+- 뉴스: 네이버 검색 API, Finnhub, `trafilatura`
 - 공시·재무: OpenDART, SEC EDGAR
 
 ---

@@ -1,0 +1,136 @@
+[
+  {
+    "input": {
+      "ticker": "AAPL",
+      "event_date": "2026-07-25",
+      "lookback_days": 90
+    },
+    "result": {
+      "ticker": "AAPL",
+      "filings": [
+        {
+          "filing_id": "0000320193-26-000013",
+          "filing_date": "2026-05-01",
+          "form": "10-Q",
+          "title": "10-Q",
+          "primary_doc": "aapl-20260328.htm"
+        },
+        {
+          "filing_id": "0000320193-26-000011",
+          "filing_date": "2026-04-30",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "aapl-20260430.htm"
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "ticker": "MSFT",
+      "event_date": "2026-07-25",
+      "lookback_days": 90
+    },
+    "result": {
+      "ticker": "MSFT",
+      "filings": [
+        {
+          "filing_id": "0001193125-26-258667",
+          "filing_date": "2026-06-05",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "d26760d8k.htm"
+        },
+        {
+          "filing_id": "0001193125-26-224155",
+          "filing_date": "2026-05-14",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "d125909d8k.htm"
+        },
+        {
+          "filing_id": "0001193125-26-191507",
+          "filing_date": "2026-04-29",
+          "form": "10-Q",
+          "title": "10-Q",
+          "primary_doc": "msft-20260331.htm"
+        },
+        {
+          "filing_id": "0001193125-26-191457",
+          "filing_date": "2026-04-29",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "msft-20260429.htm"
+        }
+      ]
+    }
+  },
+  {
+    "input": {
+      "ticker": "NVDA",
+      "event_date": "2026-07-25",
+      "lookback_days": 90
+    },
+    "result": {
+      "ticker": "NVDA",
+      "filings": [
+        {
+          "filing_id": "0001045810-26-000060",
+          "filing_date": "2026-07-02",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "nvda-20260628.htm"
+        },
+        {
+          "filing_id": "0001045810-26-000056",
+          "filing_date": "2026-06-30",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "nvda-20260624.htm"
+        },
+        {
+          "filing_id": "0001193125-26-275783",
+          "filing_date": "2026-06-18",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "d48176d8k.htm"
+        },
+        {
+          "filing_id": "0001045810-26-000052",
+          "filing_date": "2026-05-20",
+          "form": "10-Q",
+          "title": "10-Q",
+          "primary_doc": "nvda-20260426.htm"
+        },
+        {
+          "filing_id": "0001045810-26-000051",
+          "filing_date": "2026-05-20",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "nvda-20260520.htm"
+        },
+        {
+          "filing_id": "0001045810-26-000036",
+          "filing_date": "2026-05-12",
+          "form": "DEF 14A",
+          "title": "DEF 14A",
+          "primary_doc": "nvda-20260512.htm"
+        },
+        {
+          "filing_id": "0001045810-26-000028",
+          "filing_date": "2026-05-08",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "nvda-20260507.htm"
+        },
+        {
+          "filing_id": "0001045810-26-000026",
+          "filing_date": "2026-04-27",
+          "form": "8-K",
+          "title": "8-K",
+          "primary_doc": "nvda-20260424.htm"
+        }
+      ]
+    }
+  }
+]

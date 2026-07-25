@@ -1,0 +1,176 @@
+[
+  {
+    "input": {
+      "ticker": "AAPL",
+      "n_years": 5
+    },
+    "result": {
+      "ticker": "AAPL",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "by_year": {
+        "2021": {
+          "Revenue": 365817000000,
+          "OperatingIncome": 108949000000,
+          "NetIncome": 94680000000,
+          "TotalAssets": 351002000000,
+          "TotalLiabilities": 287912000000,
+          "TotalEquity": 63090000000
+        },
+        "2022": {
+          "Revenue": 394328000000,
+          "OperatingIncome": 119437000000,
+          "NetIncome": 99803000000,
+          "TotalAssets": 352755000000,
+          "TotalLiabilities": 302083000000,
+          "TotalEquity": 50672000000
+        },
+        "2023": {
+          "Revenue": 383285000000,
+          "OperatingIncome": 114301000000,
+          "NetIncome": 96995000000,
+          "TotalAssets": 352583000000,
+          "TotalLiabilities": 290437000000,
+          "TotalEquity": 62146000000
+        },
+        "2024": {
+          "Revenue": 391035000000,
+          "OperatingIncome": 123216000000,
+          "NetIncome": 93736000000,
+          "TotalAssets": 364980000000,
+          "TotalLiabilities": 308030000000,
+          "TotalEquity": 56950000000
+        },
+        "2025": {
+          "Revenue": 416161000000,
+          "OperatingIncome": 133050000000,
+          "NetIncome": 112010000000,
+          "TotalAssets": 359241000000,
+          "TotalLiabilities": 285508000000,
+          "TotalEquity": 73733000000
+        }
+      }
+    }
+  },
+  {
+    "input": {
+      "ticker": "MSFT",
+      "n_years": 5
+    },
+    "result": {
+      "ticker": "MSFT",
+      "years": [
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "by_year": {
+        "2021": {
+          "Revenue": 168088000000,
+          "OperatingIncome": 69916000000,
+          "NetIncome": 61271000000,
+          "TotalAssets": 333779000000,
+          "TotalLiabilities": 191791000000,
+          "TotalEquity": 141988000000
+        },
+        "2022": {
+          "Revenue": 198270000000,
+          "OperatingIncome": 83383000000,
+          "NetIncome": 72738000000,
+          "TotalAssets": 364840000000,
+          "TotalLiabilities": 198298000000,
+          "TotalEquity": 166542000000
+        },
+        "2023": {
+          "Revenue": 211915000000,
+          "OperatingIncome": 88523000000,
+          "NetIncome": 72361000000,
+          "TotalAssets": 411976000000,
+          "TotalLiabilities": 205753000000,
+          "TotalEquity": 206223000000
+        },
+        "2024": {
+          "Revenue": 245122000000,
+          "OperatingIncome": 109433000000,
+          "NetIncome": 88136000000,
+          "TotalAssets": 512163000000,
+          "TotalLiabilities": 243686000000,
+          "TotalEquity": 268477000000
+        },
+        "2025": {
+          "Revenue": 281724000000,
+          "OperatingIncome": 128528000000,
+          "NetIncome": 101832000000,
+          "TotalAssets": 619003000000,
+          "TotalLiabilities": 275524000000,
+          "TotalEquity": 343479000000
+        }
+      }
+    }
+  },
+  {
+    "input": {
+      "ticker": "NVDA",
+      "n_years": 5
+    },
+    "result": {
+      "ticker": "NVDA",
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "by_year": {
+        "2022": {
+          "Revenue": 26914000000,
+          "OperatingIncome": 10041000000,
+          "NetIncome": 9752000000,
+          "TotalAssets": 44187000000,
+          "TotalLiabilities": 17575000000,
+          "TotalEquity": 26612000000
+        },
+        "2023": {
+          "Revenue": 26974000000,
+          "OperatingIncome": 4224000000,
+          "NetIncome": 4368000000,
+          "TotalAssets": 41182000000,
+          "TotalLiabilities": 19081000000,
+          "TotalEquity": 22101000000
+        },
+        "2024": {
+          "Revenue": 60922000000,
+          "OperatingIncome": 32972000000,
+          "NetIncome": 29760000000,
+          "TotalAssets": 65728000000,
+          "TotalLiabilities": 22750000000,
+          "TotalEquity": 42978000000
+        },
+        "2025": {
+          "Revenue": 130497000000,
+          "OperatingIncome": 81453000000,
+          "NetIncome": 72880000000,
+          "TotalAssets": 111601000000,
+          "TotalLiabilities": 32274000000,
+          "TotalEquity": 79327000000
+        },
+        "2026": {
+          "Revenue": 215938000000,
+          "OperatingIncome": 130387000000,
+          "NetIncome": 120067000000,
+          "TotalAssets": 206803000000,
+          "TotalLiabilities": 49510000000,
+          "TotalEquity": 157293000000
+        }
+      }
+    }
+  }
+]
