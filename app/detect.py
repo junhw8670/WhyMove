@@ -12,7 +12,7 @@ from .models import Event, Market, SignalType
 def build_features(df: pd.DataFrame, span: int = 60) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
 
-    out["ret"] = df["Close"].pct_change()
+    out["ret"] = df["Close"].pct_change(fill_method=None)
 
     vmean = df["Volume"].ewm(span=span).mean()
     vstd = df["Volume"].ewm(span=span).std()    

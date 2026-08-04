@@ -57,7 +57,7 @@ def fetch_ohlcv(ticker: str, market: str, start: str, end: str) -> pd.DataFrame:
         df = df.set_index("date").sort_index()[["Open", "High", "Low", "Close", "Volume"]]
     else:
         import yfinance as yf
-        df = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=False)
+        df = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=True)
         df = df[["Open", "High", "Low", "Close", "Volume"]]
         if df.index.tz is not None:
             df.index = df.index.tz_localize(None)
@@ -68,7 +68,7 @@ def fetch_ohlcv(ticker: str, market: str, start: str, end: str) -> pd.DataFrame:
 def fetch_market(market, start, end):
     if market == "US":
         import yfinance as yf
-        df = yf.Ticker("SPY").history(start=start, end=end, auto_adjust=False)
+        df = yf.Ticker("SPY").history(start=start, end=end, auto_adjust=True)
         s = df["Close"]
         if s.index.tz is not None:
             s.index = s.index.tz_localize(None)
@@ -100,7 +100,7 @@ def backtest_ticker(ticker, market, fetch_start, end, horizons,
         return []
 
     fwd = forward_returns(df, horizons)
-    day_ret = df["Close"].pct_change()
+    day_ret = df["Close"].pct_change(fill_method=None)
 
     pos = {ts: i for i, ts in enumerate(df.index)}
     events = sorted(
@@ -162,15 +162,22 @@ def bootstrap_excess(records, h, signal=None, n_boot=2000, seed=2026):
     df = pd.DataFrame(records)
     if signal:
         df = df[df.signal == signal]
-    per_ticker = df.groupby("ticker")[f"exc_{h}"].mean().dropna().to_numpy()
-    if len(per_ticker) < 2:
+    event_values = df[f"exc_{h}"].dropna().to_numpy(dtype=float)
+
+    if len(event_values) < 2:
         return None
-    boots = np.array([
-        rng.choice(per_ticker, len(per_ticker), replace=True).mean()
-        for _ in range(n_boot)
-    ])
+    boots = np.empty(n_boot)
+
+    for i in range(n_boot):
+        sampled_events = rng.choice(
+            event_values,
+            size=len(event_values),
+            replace=True,
+        )
+        boots[i] = sampled_events.mean()
+
     lo, hi = np.percentile(boots, [2.5, 97.5])
-    return round(per_ticker.mean()*100, 2), round(lo*100, 2), round(hi*100, 2)
+    return round(event_values.mean()*100, 2), round(lo*100, 2), round(hi*100, 2)
 
 
 def run(market, top_n, horizons, history_days=365, warmup_days=365, cooldown=0, end=None):
@@ -204,7 +211,164 @@ def run(market, top_n, horizons, history_days=365, warmup_days=365, cooldown=0, 
     print(f"\n records: {len(all_records)}\n")
     print(summary.to_string(index=False) if not summary.empty else "(신호 없음)")
     return summary, all_records
- 
+
+
+def make_charts(summary, records, horizons, market):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    if summary.empty:
+        print("[chart] 표시할 백테스트 결과가 없습니다.")
+        return
+
+    plt.rcParams["font.family"] = "Malgun Gothic"
+    plt.rcParams["axes.unicode_minus"] = False
+
+    signal_order = [
+        "52_weeks_high",
+        "price_jump_up",
+        "gap_up",
+        "volume_spike_up",
+        "52_weeks_low",
+        "price_jump_down",
+        "gap_down",
+        "volume_spike_down",
+    ]
+
+    output_dir = ROOT / "results" / "img"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    chart_df = summary.copy()
+
+    existing_signals = chart_df["signal"].astype(str).tolist()
+    ordered_signals = [
+        signal for signal in signal_order
+        if signal in existing_signals
+    ]
+    ordered_signals += [
+        signal for signal in existing_signals
+        if signal not in ordered_signals
+    ]
+
+    chart_df["signal"] = pd.Categorical(
+        chart_df["signal"],
+        categories=ordered_signals,
+        ordered=True,
+    )
+    chart_df = chart_df.sort_values("signal")
+
+    excess_columns = [
+        f"exc_{h}" for h in horizons
+        if f"exc_{h}" in chart_df.columns
+    ]
+
+    if excess_columns:
+        fig, ax = plt.subplots(figsize=(10, 5))
+
+        chart_df.plot.bar(
+            x="signal",
+            y=excess_columns,
+            ax=ax,
+            width=0.8,
+        )
+
+        ax.axhline(0, color="black", linewidth=0.8)
+        ax.set_xlabel("신호")
+        ax.set_ylabel("시장 대비 평균 초과수익률 (%)")
+        ax.set_title(f"신호별 향후 초과수익률 ({market})")
+        ax.legend(ax.containers[:len(excess_columns)], [
+            f"{column.removeprefix('exc_')}일"
+            for column in excess_columns
+        ])
+        ax.tick_params(axis="x", rotation=30)
+
+        for label in ax.get_xticklabels():
+            label.set_horizontalalignment("right")
+
+        fig.tight_layout()
+
+        excess_path = output_dir / f"exc_by_signal_{market}.png"
+        fig.savefig(excess_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"[chart] saved: {excess_path}")
+
+    ci_horizon = max(horizons)
+    ci_rows = []
+
+    for signal in ordered_signals:
+        result = bootstrap_excess(
+            records,
+            ci_horizon,
+            signal=signal,
+        )
+
+        if result is not None:
+            mean_value, lower, upper = result
+            ci_rows.append({
+                "signal": signal,
+                "mean": mean_value,
+                "lower": lower,
+                "upper": upper,
+            })
+
+    if ci_rows:
+        ci_df = pd.DataFrame(ci_rows)
+        y_positions = np.arange(len(ci_df))
+
+        fig, ax = plt.subplots(
+            figsize=(9, max(4.5, len(ci_df) * 0.55))
+        )
+
+        for y, row in zip(y_positions, ci_df.to_dict("records")):
+            significant = row["lower"] > 0 or row["upper"] < 0
+            color = "crimson" if significant else "gray"
+
+            ax.plot(
+                [row["lower"], row["upper"]],
+                [y, y],
+                color=color,
+                linewidth=2,
+            )
+            ax.plot(
+                row["mean"],
+                y,
+                marker="o",
+                color=color,
+                markersize=7,
+            )
+
+        ax.axvline(
+            0,
+            color="black",
+            linewidth=0.8,
+            linestyle="--",
+        )
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(ci_df["signal"])
+        ax.invert_yaxis()
+        ax.set_xlabel("시장 대비 평균 초과수익률 (%)")
+        ax.set_title(
+            f"신호별 {ci_horizon}일 초과수익률 "
+            f"부트스트랩 95% 신뢰구간 ({market})"
+        )
+        ax.grid(axis="x", alpha=0.2)
+
+        fig.tight_layout()
+
+        ci_path = (
+            output_dir
+            / f"bootstrap_ci_{ci_horizon}d_{market}.png"
+        )
+        fig.savefig(ci_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"[chart] saved: {ci_path}")
+    else:
+        print(
+            f"[chart] {ci_horizon}일 신뢰구간을 만들기에 "
+            "표본이 부족합니다."
+        )
  
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="신호별 향후 수익률 백테스트")
@@ -228,6 +392,8 @@ if __name__ == "__main__":
     if args.save and not summary.empty:
         summary.to_csv(args.save, index=False, encoding="utf-8-sig")
         print(f"\nsaved → {args.save}")
+
+    make_charts(summary, records, args.horizons, args.market)
 
     for sig in ["52_weeks_high", "price_jump_up", "gap_up", "volume_spike_up", "52_weeks_low", "price_jump_down", "gap_down", "volume_spike_down"]:
         for h in [20, 60]:
