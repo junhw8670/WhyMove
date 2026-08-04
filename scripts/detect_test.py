@@ -22,8 +22,8 @@ from app.graph import scan_universe
 
 MARKET = "US"     
 KR_MARKET = "ALL"     
-START_DATE = "2026-06-26"
-END_DATE = "2026-06-26"
+START_DATE = "2026-07-27"
+END_DATE = "2026-08-02"
 TOP_N_UNIVERSE = 500
 
 KR_CACHE = ROOT / "cache" / "kr_ohlcv.parquet"

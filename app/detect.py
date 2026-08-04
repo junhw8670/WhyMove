@@ -13,18 +13,24 @@ def build_features(df: pd.DataFrame, span: int = 60) -> pd.DataFrame:
     out = pd.DataFrame(index=df.index)
 
     out["ret"] = df["Close"].pct_change(fill_method=None)
+    out["gap"] = df["Open"] / df["Close"].shift(1) - 1
 
-    vmean = df["Volume"].ewm(span=span).mean()
-    vstd = df["Volume"].ewm(span=span).std()    
+    vmean = df["Volume"].ewm(span=span).mean().shift(1)
+    vstd = df["Volume"].ewm(span=span).std().shift(1)
+
+    rmean = out["ret"].ewm(span=span).mean().shift(1)
+    rstd = out["ret"].ewm(span=span).std().shift(1)
+
+    gmean = out["gap"].ewm(span=span).mean().shift(1)
+    gstd = out["gap"].ewm(span=span).std().shift(1)
     
     out["vol_z"] = (df["Volume"] - vmean) / (vstd + 1e-9)
     out["vol_mult"] = df["Volume"] / (vmean + 1e-9)
 
-    out["gap"] = df["Open"] / df["Close"].shift(1) - 1
 
-    out["ret_z"] = out["ret"] / (out["ret"].ewm(span=span).std() + 1e-9)
-    out["gap_z"] = out["gap"] / (out["gap"].ewm(span=span).std() + 1e-9)
-    
+    out["ret_z"] = (out["ret"] - rmean) / (rstd + 1e-9)
+    out["gap_z"] = (out["gap"] - gmean) / (gstd + 1e-9)
+
     return out.dropna()
 
 
